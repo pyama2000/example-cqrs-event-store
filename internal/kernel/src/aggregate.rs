@@ -1,3 +1,7 @@
+use lib::Result;
+
+use crate::command::WidgetCommand;
+use crate::error::AggregateError;
 use crate::event::WidgetEvent;
 use crate::Id;
 
@@ -29,6 +33,23 @@ impl WidgetAggregate {
     /// 集約のバージョン (= 更新回数)
     pub fn version(&self) -> u64 {
         self.version
+    }
+
+    /// 集約にコマンドを実行する
+    pub fn apply_command(self, command: WidgetCommand) -> Result<WidgetCommandState> {
+        let events = match command {
+            WidgetCommand::CreateWidget(event) => vec![event],
+            WidgetCommand::ChangeWidgetName(event) => vec![event],
+            WidgetCommand::ChangeWidgetDescription(event) => vec![event],
+        };
+        Ok(WidgetCommandState {
+            widget_id: self.id,
+            events,
+            aggregate_version: self
+                .version
+                .checked_add(1)
+                .ok_or(AggregateError::VersionUpdateLimitReached)?,
+        })
     }
 }
 
