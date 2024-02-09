@@ -24,6 +24,6 @@ pub enum WidgetEvent {
         /// イベントの id
         id: Id<WidgetEvent>,
         /// 部品の名前
-        description: String,
+        widget_description: String,
     },
 }

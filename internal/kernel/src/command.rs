@@ -29,4 +29,12 @@ impl WidgetCommand {
             widget_name,
         })
     }
+
+    /// 部品の説明を変更する
+    pub fn change_widget_description(widget_description: String) -> Self {
+        Self::ChangeWidgetDescription(WidgetEvent::WidgetDescriptionChanged {
+            id: Id::generate(),
+            widget_description,
+        })
+    }
 }

@@ -52,9 +52,15 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
 
     async fn change_widget_description(
         &self,
-        _widget_id: String,
-        _widget_description: String,
+        widget_id: String,
+        widget_description: String,
     ) -> Result<()> {
-        todo!()
+        let aggregate = self
+            .command
+            .get_widget_aggregate(widget_id.parse()?)
+            .await?;
+        let command = WidgetCommand::change_widget_description(widget_description);
+        let command_state = aggregate.apply_command(command)?;
+        self.command.update_widget_aggregate(command_state).await
     }
 }
