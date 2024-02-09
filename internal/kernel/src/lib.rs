@@ -1,14 +1,14 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+use std::marker::PhantomData;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+use ulid::Ulid;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub mod aggregate;
+pub mod command;
+pub mod error;
+pub mod event;
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct Id<T> {
+    value: Ulid,
+    _maker: PhantomData<T>,
 }
