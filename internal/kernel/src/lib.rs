@@ -13,3 +13,18 @@ pub struct Id<T> {
     value: Ulid,
     _maker: PhantomData<T>,
 }
+
+impl<T> Id<T> {
+    pub fn generate() -> Self {
+        Self {
+            value: Ulid::new(),
+            _maker: PhantomData,
+        }
+    }
+}
+
+impl<T> Default for Id<T> {
+    fn default() -> Self {
+        Self::generate()
+    }
+}

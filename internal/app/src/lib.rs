@@ -1,5 +1,7 @@
 use std::future::Future;
 
+use kernel::aggregate::WidgetAggregate;
+use kernel::command::WidgetCommand;
 use kernel::processor::CommandProcessor;
 use lib::Result;
 
@@ -31,8 +33,11 @@ pub struct WidgetServiceImpl<C: CommandProcessor> {
 }
 
 impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
-    async fn create_widget(&self, _widget_name: String, _widget_description: String) -> Result<()> {
-        todo!()
+    async fn create_widget(&self, widget_name: String, widget_description: String) -> Result<()> {
+        let aggregate = WidgetAggregate::default();
+        let command = WidgetCommand::create_widget(widget_name, widget_description);
+        let command_state = aggregate.apply_command(command)?;
+        self.command.create_widget_aggregate(command_state).await
     }
 
     async fn change_widget_name(&self, _widget_id: String, _widget_name: String) -> Result<()> {
