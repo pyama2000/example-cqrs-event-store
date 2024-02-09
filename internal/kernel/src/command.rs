@@ -21,4 +21,12 @@ impl WidgetCommand {
             widget_description,
         })
     }
+
+    /// 部品の名前を変更する
+    pub fn change_widget_name(widget_name: String) -> Self {
+        Self::ChangeWidgetName(WidgetEvent::WidgetNameChanged {
+            id: Id::generate(),
+            widget_name,
+        })
+    }
 }
