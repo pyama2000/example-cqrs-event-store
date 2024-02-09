@@ -1,4 +1,5 @@
 use std::marker::PhantomData;
+use std::str::FromStr;
 
 use ulid::Ulid;
 
@@ -12,4 +13,30 @@ pub mod processor;
 pub struct Id<T> {
     value: Ulid,
     _maker: PhantomData<T>,
+}
+
+impl<T> Id<T> {
+    pub fn generate() -> Self {
+        Self {
+            value: Ulid::new(),
+            _maker: PhantomData,
+        }
+    }
+}
+
+impl<T> Default for Id<T> {
+    fn default() -> Self {
+        Self::generate()
+    }
+}
+
+impl<T> FromStr for Id<T> {
+    type Err = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            value: Ulid::from_str(s)?,
+            _maker: PhantomData,
+        })
+    }
 }

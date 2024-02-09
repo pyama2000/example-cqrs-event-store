@@ -6,7 +6,7 @@ use crate::event::WidgetEvent;
 use crate::Id;
 
 /// 部品 (Widget) の集約
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct WidgetAggregate {
     id: Id<WidgetAggregate>,
     name: String,
