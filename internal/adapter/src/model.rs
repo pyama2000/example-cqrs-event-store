@@ -9,6 +9,20 @@ pub(crate) struct WidgetAggregateModel {
     aggregate_version: u64,
 }
 
+impl WidgetAggregateModel {
+    pub(crate) fn widget_id(&self) -> &str {
+        &self.widget_id
+    }
+
+    pub(crate) fn last_events(&self) -> &serde_json::Value {
+        &self.last_events
+    }
+
+    pub(crate) fn aggregate_version(&self) -> u64 {
+        self.aggregate_version
+    }
+}
+
 impl TryFrom<WidgetCommandState> for WidgetAggregateModel {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -25,6 +39,8 @@ impl TryFrom<WidgetCommandState> for WidgetAggregateModel {
             aggregate_version: value.aggregate_version(),
         })
     }
+}
+
 }
 
 #[derive(Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
