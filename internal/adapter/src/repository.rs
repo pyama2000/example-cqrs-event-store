@@ -50,6 +50,7 @@ impl CommandProcessor for WidgetRepository {
         // ビジネスロジックの適用の前にイベントと集約のデータが正しい状態にあることを保証するために
         // 前回集約が保存された際に作成されたイベントを Event テーブルに個々の項目として永続化する
         let widget_id = model.widget_id().to_string();
+        let aggregate_version = model.aggregate_version();
         let WidgetEventModels(models) = model.try_into()?;
         let mut tx = self.pool.begin().await?;
         for model in models {
@@ -90,7 +91,8 @@ impl CommandProcessor for WidgetRepository {
         }
         let events: Vec<_> = events.into_iter().map(|x| x.unwrap()).collect();
         Ok(Some(
-            WidgetAggregateState::new(WidgetAggregate::default(), events).restore(),
+            WidgetAggregateState::new(WidgetAggregate::default(), events, aggregate_version)
+                .restore()?,
         ))
     }
 

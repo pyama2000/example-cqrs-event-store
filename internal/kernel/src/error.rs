@@ -22,4 +22,7 @@ pub enum AggregateError {
     /// Aggregate が既に更新さているときのエラー
     #[error("Aggregate is already updated")]
     Conflict,
+    /// イベントから Aggregate を復元時のバージョンが合わないときのエラー
+    #[error("Not match aggregate version")]
+    NotMatchVersion,
 }

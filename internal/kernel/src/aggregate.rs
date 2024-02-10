@@ -1,7 +1,7 @@
 use lib::Result;
 
 use crate::command::WidgetCommand;
-use crate::error::CommandError;
+use crate::error::{AggregateError, CommandError};
 use crate::event::WidgetEvent;
 use crate::Id;
 
@@ -201,36 +201,48 @@ impl WidgetCommandExecutor<bool, bool, bool> {
 pub struct WidgetAggregateState {
     aggregate: WidgetAggregate,
     events: Vec<WidgetEvent>,
+    aggregate_version: u64,
 }
 
 impl WidgetAggregateState {
-    pub fn new(aggregate: WidgetAggregate, events: Vec<WidgetEvent>) -> Self {
-        Self { aggregate, events }
+    pub fn new(
+        aggregate: WidgetAggregate,
+        events: Vec<WidgetEvent>,
+        aggregate_version: u64,
+    ) -> Self {
+        Self {
+            aggregate,
+            events,
+            aggregate_version,
+        }
     }
 
-    pub fn restore(mut self) -> WidgetAggregate {
-        for event in self.events {
+    pub fn restore(mut self) -> Result<WidgetAggregate> {
+        for event in &self.events {
             match event {
                 WidgetEvent::WidgetCreated {
                     widget_name,
                     widget_description,
                     ..
                 } => {
-                    self.aggregate.name = widget_name;
-                    self.aggregate.description = widget_description;
+                    self.aggregate.name = widget_name.to_string();
+                    self.aggregate.description = widget_description.to_string();
                 }
                 WidgetEvent::WidgetNameChanged { widget_name, .. } => {
-                    self.aggregate.name = widget_name;
+                    self.aggregate.name = widget_name.to_string();
                     self.aggregate.version += 1;
                 }
                 WidgetEvent::WidgetDescriptionChanged {
                     widget_description, ..
                 } => {
-                    self.aggregate.description = widget_description;
+                    self.aggregate.description = widget_description.to_string();
                     self.aggregate.version += 1;
                 }
             }
         }
-        self.aggregate
+        if self.aggregate.version != self.aggregate_version {
+            return Err(Box::new(AggregateError::NotMatchVersion));
+        }
+        Ok(self.aggregate)
     }
 }
