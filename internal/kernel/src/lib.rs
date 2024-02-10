@@ -2,6 +2,7 @@ use std::fmt::Display;
 use std::marker::PhantomData;
 use std::str::FromStr;
 
+use lib::Error;
 use ulid::Ulid;
 
 pub mod aggregate;
@@ -32,7 +33,7 @@ impl<T> Default for Id<T> {
 }
 
 impl<T> FromStr for Id<T> {
-    type Err = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Err = Error;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self {

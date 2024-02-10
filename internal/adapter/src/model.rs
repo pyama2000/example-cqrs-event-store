@@ -1,5 +1,6 @@
 use kernel::aggregate::WidgetCommandState;
 use kernel::event::WidgetEvent;
+use lib::Error;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -26,7 +27,7 @@ impl WidgetAggregateModel {
 }
 
 impl TryFrom<WidgetCommandState> for WidgetAggregateModel {
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Error = Error;
 
     fn try_from(value: WidgetCommandState) -> Result<Self, Self::Error> {
         Ok(Self {
@@ -71,7 +72,7 @@ pub(crate) struct WidgetEventModels(pub(crate) Vec<WidgetEventModel>);
 
 /// `WidgetAggregateModel` の last_events から `WidgetEventModel` の配列に変換する
 impl TryFrom<WidgetAggregateModel> for WidgetEventModels {
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Error = Error;
 
     fn try_from(value: WidgetAggregateModel) -> Result<Self, Self::Error> {
         let mappers: Vec<WidgetEventMapper> = serde_json::from_value(value.last_events)?;
@@ -123,9 +124,7 @@ impl WidgetEventMapper {
         }
     }
 
-    fn to_payload_json_value(
-        &self,
-    ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync + 'static>> {
+    fn to_payload_json_value(&self) -> Result<serde_json::Value, Error> {
         let payload = match &self {
             WidgetEventMapper::WidgetCreated { payload, .. } => serde_json::to_value(payload)?,
             WidgetEventMapper::WidgetNameChanged { payload, .. } => serde_json::to_value(payload)?,
@@ -167,7 +166,7 @@ impl From<WidgetEvent> for WidgetEventMapper {
 }
 
 impl TryFrom<WidgetEventModel> for WidgetEventMapper {
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Error = Error;
 
     fn try_from(value: WidgetEventModel) -> Result<Self, Self::Error> {
         let value = serde_json::json!({
@@ -180,7 +179,7 @@ impl TryFrom<WidgetEventModel> for WidgetEventMapper {
 }
 
 impl TryInto<WidgetEvent> for WidgetEventMapper {
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Error = Error;
 
     fn try_into(self) -> Result<WidgetEvent, Self::Error> {
         let event = match self {
