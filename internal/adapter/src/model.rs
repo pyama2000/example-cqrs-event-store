@@ -88,6 +88,7 @@ impl TryFrom<WidgetAggregateModel> for WidgetEventModels {
     }
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(
     Serialize, Deserialize, strum_macros::Display, Debug, Clone, PartialEq, Eq, PartialOrd, Ord,
 )]
