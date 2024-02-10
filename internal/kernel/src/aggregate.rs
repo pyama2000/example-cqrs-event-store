@@ -197,3 +197,40 @@ impl WidgetCommandExecutor<bool, bool, bool> {
         })
     }
 }
+
+pub struct WidgetAggregateState {
+    aggregate: WidgetAggregate,
+    events: Vec<WidgetEvent>,
+}
+
+impl WidgetAggregateState {
+    pub fn new(aggregate: WidgetAggregate, events: Vec<WidgetEvent>) -> Self {
+        Self { aggregate, events }
+    }
+
+    pub fn restore(mut self) -> WidgetAggregate {
+        for event in self.events {
+            match event {
+                WidgetEvent::WidgetCreated {
+                    widget_name,
+                    widget_description,
+                    ..
+                } => {
+                    self.aggregate.name = widget_name;
+                    self.aggregate.description = widget_description;
+                }
+                WidgetEvent::WidgetNameChanged { widget_name, .. } => {
+                    self.aggregate.name = widget_name;
+                    self.aggregate.version += 1;
+                }
+                WidgetEvent::WidgetDescriptionChanged {
+                    widget_description, ..
+                } => {
+                    self.aggregate.description = widget_description;
+                    self.aggregate.version += 1;
+                }
+            }
+        }
+        self.aggregate
+    }
+}
