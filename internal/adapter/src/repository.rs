@@ -1,4 +1,5 @@
 use kernel::aggregate::{WidgetAggregate, WidgetAggregateState};
+use kernel::error::AggregateError;
 use kernel::event::WidgetEvent;
 use kernel::processor::CommandProcessor;
 use lib::Result;
@@ -97,6 +98,29 @@ impl CommandProcessor for WidgetRepository {
         &self,
         command_state: kernel::aggregate::WidgetCommandState,
     ) -> Result<()> {
-        todo!()
+        let model: WidgetAggregateModel = command_state.try_into()?;
+        let mut tx = self.pool.begin().await?;
+        let result = sqlx::query(
+            "
+            UPDATE
+                aggregate
+            SET
+                last_events = ?, aggregate_version = ?
+            WHERE
+                widget_id = ? AND aggregate_version = ?
+            ",
+        )
+        .bind(model.last_events())
+        .bind(model.aggregate_version())
+        .bind(model.widget_id())
+        .bind(model.aggregate_version().saturating_sub(1))
+        .execute(&mut *tx)
+        .await?;
+        // NOTE: 同時接続で既に Aggregate が更新されていた場合はエラーを返す
+        if result.rows_affected() == 0 {
+            return Err(Box::new(AggregateError::Conflict));
+        }
+        tx.commit().await?;
+        Ok(())
     }
 }
