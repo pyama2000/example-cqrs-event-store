@@ -16,3 +16,13 @@ pub enum CommandError {
     #[error("Invalid description for the widget")]
     InvalidWidgetDescription,
 }
+
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum AggregateError {
+    /// Aggregate が既に更新さているときのエラー
+    #[error("Aggregate is already updated")]
+    Conflict,
+    /// イベントから Aggregate を復元時のバージョンが合わないときのエラー
+    #[error("Not match aggregate version")]
+    NotMatchVersion,
+}
