@@ -1,4 +1,5 @@
 use kernel::aggregate::WidgetCommandState;
+use kernel::event::WidgetEvent;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
@@ -35,7 +36,7 @@ impl TryFrom<WidgetCommandState> for WidgetAggregateModel {
                     .events()
                     .iter()
                     .map(|x| x.clone().into())
-                    .collect::<Vec<WidgetEvent>>(),
+                    .collect::<Vec<WidgetEventMapper>>(),
             )?,
             aggregate_version: value.aggregate_version(),
         })
@@ -73,13 +74,13 @@ impl TryFrom<WidgetAggregateModel> for WidgetEventModels {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
     fn try_from(value: WidgetAggregateModel) -> Result<Self, Self::Error> {
-        let events: Vec<WidgetEvent> = serde_json::from_value(value.last_events)?;
+        let mappers: Vec<WidgetEventMapper> = serde_json::from_value(value.last_events)?;
         let mut models = Vec::new();
-        for event in events {
+        for mapper in mappers {
             let model = WidgetEventModel {
-                event_id: event.event_id().to_string(),
-                event_name: event.event_name(),
-                payload: event.to_payload_json_value()?,
+                event_id: mapper.event_id().to_string(),
+                event_name: mapper.event_name(),
+                payload: mapper.to_payload_json_value()?,
             };
             models.push(model);
         }
@@ -91,7 +92,7 @@ impl TryFrom<WidgetAggregateModel> for WidgetEventModels {
     Serialize, Deserialize, strum_macros::Display, Debug, Clone, PartialEq, Eq, PartialOrd, Ord,
 )]
 #[serde(tag = "event_name")]
-pub(crate) enum WidgetEvent {
+pub(crate) enum WidgetEventMapper {
     WidgetCreated {
         event_id: String,
         payload: WidgetCreatedPayload,
@@ -106,7 +107,7 @@ pub(crate) enum WidgetEvent {
     },
 }
 
-impl WidgetEvent {
+impl WidgetEventMapper {
     /// イベントの名前
     fn event_name(&self) -> String {
         self.to_string()
@@ -115,9 +116,9 @@ impl WidgetEvent {
     /// イベントの ID
     fn event_id(&self) -> &str {
         match &self {
-            WidgetEvent::WidgetCreated { event_id, .. } => event_id,
-            WidgetEvent::WidgetNameChanged { event_id, .. } => event_id,
-            WidgetEvent::WidgetDescriptionChanged { event_id, .. } => event_id,
+            WidgetEventMapper::WidgetCreated { event_id, .. } => event_id,
+            WidgetEventMapper::WidgetNameChanged { event_id, .. } => event_id,
+            WidgetEventMapper::WidgetDescriptionChanged { event_id, .. } => event_id,
         }
     }
 
@@ -125,18 +126,20 @@ impl WidgetEvent {
         &self,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync + 'static>> {
         let payload = match &self {
-            WidgetEvent::WidgetCreated { payload, .. } => serde_json::to_value(payload)?,
-            WidgetEvent::WidgetNameChanged { payload, .. } => serde_json::to_value(payload)?,
-            WidgetEvent::WidgetDescriptionChanged { payload, .. } => serde_json::to_value(payload)?,
+            WidgetEventMapper::WidgetCreated { payload, .. } => serde_json::to_value(payload)?,
+            WidgetEventMapper::WidgetNameChanged { payload, .. } => serde_json::to_value(payload)?,
+            WidgetEventMapper::WidgetDescriptionChanged { payload, .. } => {
+                serde_json::to_value(payload)?
+            }
         };
         Ok(payload)
     }
 }
 
-impl From<kernel::event::WidgetEvent> for WidgetEvent {
-    fn from(value: kernel::event::WidgetEvent) -> Self {
+impl From<WidgetEvent> for WidgetEventMapper {
+    fn from(value: WidgetEvent) -> Self {
         match value {
-            kernel::event::WidgetEvent::WidgetCreated {
+            WidgetEvent::WidgetCreated {
                 id,
                 widget_name,
                 widget_description,
@@ -147,13 +150,11 @@ impl From<kernel::event::WidgetEvent> for WidgetEvent {
                     widget_description,
                 },
             },
-            kernel::event::WidgetEvent::WidgetNameChanged { id, widget_name } => {
-                Self::WidgetNameChanged {
-                    event_id: id.to_string(),
-                    payload: WidgetNameChangedPayload::V1 { widget_name },
-                }
-            }
-            kernel::event::WidgetEvent::WidgetDescriptionChanged {
+            WidgetEvent::WidgetNameChanged { id, widget_name } => Self::WidgetNameChanged {
+                event_id: id.to_string(),
+                payload: WidgetNameChangedPayload::V1 { widget_name },
+            },
+            WidgetEvent::WidgetDescriptionChanged {
                 id,
                 widget_description,
             } => Self::WidgetDescriptionChanged {
@@ -164,7 +165,7 @@ impl From<kernel::event::WidgetEvent> for WidgetEvent {
     }
 }
 
-impl TryFrom<WidgetEventModel> for WidgetEvent {
+impl TryFrom<WidgetEventModel> for WidgetEventMapper {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
     fn try_from(value: WidgetEventModel) -> Result<Self, Self::Error> {
@@ -177,32 +178,30 @@ impl TryFrom<WidgetEventModel> for WidgetEvent {
     }
 }
 
-impl TryInto<kernel::event::WidgetEvent> for WidgetEvent {
+impl TryInto<WidgetEvent> for WidgetEventMapper {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-    fn try_into(self) -> Result<kernel::event::WidgetEvent, Self::Error> {
+    fn try_into(self) -> Result<WidgetEvent, Self::Error> {
         let event = match self {
-            WidgetEvent::WidgetCreated { event_id, payload } => match payload {
+            WidgetEventMapper::WidgetCreated { event_id, payload } => match payload {
                 WidgetCreatedPayload::V1 {
                     widget_name,
                     widget_description,
-                } => kernel::event::WidgetEvent::WidgetCreated {
+                } => WidgetEvent::WidgetCreated {
                     id: event_id.parse()?,
                     widget_name,
                     widget_description,
                 },
             },
-            WidgetEvent::WidgetNameChanged { event_id, payload } => match payload {
-                WidgetNameChangedPayload::V1 { widget_name } => {
-                    kernel::event::WidgetEvent::WidgetNameChanged {
-                        id: event_id.parse()?,
-                        widget_name,
-                    }
-                }
+            WidgetEventMapper::WidgetNameChanged { event_id, payload } => match payload {
+                WidgetNameChangedPayload::V1 { widget_name } => WidgetEvent::WidgetNameChanged {
+                    id: event_id.parse()?,
+                    widget_name,
+                },
             },
-            WidgetEvent::WidgetDescriptionChanged { event_id, payload } => match payload {
+            WidgetEventMapper::WidgetDescriptionChanged { event_id, payload } => match payload {
                 WidgetDescriptionChangedPayload::V1 { widget_description } => {
-                    kernel::event::WidgetEvent::WidgetDescriptionChanged {
+                    WidgetEvent::WidgetDescriptionChanged {
                         id: event_id.parse()?,
                         widget_description,
                     }

@@ -1,8 +1,9 @@
 use kernel::aggregate::{WidgetAggregate, WidgetAggregateState};
+use kernel::event::WidgetEvent;
 use kernel::processor::CommandProcessor;
 use lib::Result;
 
-use crate::model::{WidgetAggregateModel, WidgetEvent, WidgetEventModel, WidgetEventModels};
+use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel, WidgetEventModels};
 use crate::persistence::ConnectionPool;
 
 pub struct WidgetRepository {
@@ -76,14 +77,15 @@ impl CommandProcessor for WidgetRepository {
                 .bind(widget_id)
                 .fetch_all(&self.pool)
                 .await?;
-        let events: Vec<Result<WidgetEvent>> = models.into_iter().map(|x| x.try_into()).collect();
-        if events.iter().any(|x| x.is_err()) {
-            return Err("Parse event from model".into());
+        let mappers: Vec<Result<WidgetEventMapper>> =
+            models.into_iter().map(|x| x.try_into()).collect();
+        if mappers.iter().any(|x| x.is_err()) {
+            return Err("Parse mapper from model".into());
         }
-        let events: Vec<Result<kernel::event::WidgetEvent>> =
-            events.into_iter().map(|x| x.unwrap().try_into()).collect();
+        let events: Vec<Result<WidgetEvent>> =
+            mappers.into_iter().map(|x| x.unwrap().try_into()).collect();
         if events.iter().any(|x| x.is_err()) {
-            return Err("Parse kernel event from adapter event".into());
+            return Err("Parse event from mapper".into());
         }
         let events: Vec<_> = events.into_iter().map(|x| x.unwrap()).collect();
         Ok(Some(
