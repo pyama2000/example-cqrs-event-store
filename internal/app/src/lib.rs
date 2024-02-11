@@ -12,7 +12,7 @@ pub trait WidgetService {
         &self,
         widget_name: String,
         widget_description: String,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<String>> + Send;
     /// 部品の名前を変更する
     fn change_widget_name(
         &self,
@@ -32,12 +32,24 @@ pub struct WidgetServiceImpl<C: CommandProcessor> {
     command: C,
 }
 
+impl<C: CommandProcessor> WidgetServiceImpl<C> {
+    pub fn new(command: C) -> Self {
+        Self { command }
+    }
+}
+
 impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
-    async fn create_widget(&self, widget_name: String, widget_description: String) -> Result<()> {
+    async fn create_widget(
+        &self,
+        widget_name: String,
+        widget_description: String,
+    ) -> Result<String> {
         let aggregate = WidgetAggregate::default();
+        let widget_id = aggregate.id().to_string();
         let command = WidgetCommand::create_widget(widget_name, widget_description);
         let command_state = aggregate.apply_command(command)?;
-        self.command.create_widget_aggregate(command_state).await
+        self.command.create_widget_aggregate(command_state).await?;
+        Ok(widget_id)
     }
 
     async fn change_widget_name(&self, widget_id: String, widget_name: String) -> Result<()> {

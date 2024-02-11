@@ -1,0 +1,15 @@
+services:
+  database:
+    image: mysql:8.3
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_USER: "root"
+      MYSQL_ROOT_PASSWORD: "root"
+      MYSQL_DATABASE: "widget"
+    healthcheck:
+      test: "mysqladmin ping --host 127.0.0.1 --user $$MYSQL_ROOT_USER -p$$MYSQL_ROOT_PASSWORD"
+      interval: 10s
+      timeout: 20s
+      retries: 10
+
