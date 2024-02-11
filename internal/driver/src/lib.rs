@@ -4,6 +4,7 @@ use std::time::Duration;
 use app::WidgetService;
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use lib::Error;
@@ -28,76 +29,12 @@ impl<T: ToSocketAddrs + std::fmt::Display, S: WidgetService + Send + Sync + 'sta
             .route("/healthz", get(|| async { StatusCode::OK }))
             .nest(
                 "/widgets",
-                Router::new()
-                    .route(
-                        "/",
-                        post(
-                            |State(service): State<Arc<S>>,
-                             Json(CreateWidget {
-                                 widget_name,
-                                 widget_description,
-                             }): Json<CreateWidget>| async move {
-                                match service.create_widget(widget_name, widget_description).await {
-                                    Ok(id) => Ok((
-                                        StatusCode::CREATED,
-                                        Json(serde_json::json!({ "widget_id": id })),
-                                    )),
-                                    Err(e) => {
-                                        Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
-                                    }
-                                }
-                            },
-                        ),
-                    )
-                    .nest(
-                        "/:widget_id",
-                        Router::new()
-                            .route(
-                                "/name",
-                                post(
-                                    |State(service): State<Arc<S>>,
-                                     Path(widget_id): Path<String>,
-                                     Json(ChangeWidgetName { widget_name }): Json<
-                                        ChangeWidgetName,
-                                    >| async move {
-                                        match service
-                                            .change_widget_name(widget_id, widget_name)
-                                            .await
-                                        {
-                                            Ok(_) => Ok(StatusCode::ACCEPTED),
-                                            Err(e) => Err((
-                                                StatusCode::INTERNAL_SERVER_ERROR,
-                                                e.to_string(),
-                                            )),
-                                        }
-                                    },
-                                ),
-                            )
-                            .route(
-                                "/description",
-                                post(
-                                    |State(service): State<Arc<S>>,
-                                     Path(widget_id): Path<String>,
-                                     Json(ChangeWidgetDescription { widget_description }): Json<
-                                        ChangeWidgetDescription,
-                                    >| async move {
-                                        match service
-                                            .change_widget_description(
-                                                widget_id,
-                                                widget_description,
-                                            )
-                                            .await
-                                        {
-                                            Ok(_) => Ok(StatusCode::ACCEPTED),
-                                            Err(e) => Err((
-                                                StatusCode::INTERNAL_SERVER_ERROR,
-                                                e.to_string(),
-                                            )),
-                                        }
-                                    },
-                                ),
-                            ),
-                    ),
+                Router::new().route("/", post(create_widget)).nest(
+                    "/:widget_id",
+                    Router::new()
+                        .route("/name", post(change_widget_name))
+                        .route("/description", post(change_widget_description)),
+                ),
             )
             .with_state(self.service)
             .layer(TimeoutLayer::new(Duration::from_millis(100)));
@@ -124,6 +61,48 @@ struct ChangeWidgetName {
 #[derive(Deserialize)]
 struct ChangeWidgetDescription {
     widget_description: String,
+}
+
+async fn create_widget<S: WidgetService>(
+    State(service): State<Arc<S>>,
+    Json(CreateWidget {
+        widget_name,
+        widget_description,
+    }): Json<CreateWidget>,
+) -> impl IntoResponse {
+    match service.create_widget(widget_name, widget_description).await {
+        Ok(id) => (
+            StatusCode::CREATED,
+            Json(serde_json::json!({ "widget_id": id })),
+        )
+            .into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn change_widget_name<S: WidgetService>(
+    Path(widget_id): Path<String>,
+    State(service): State<Arc<S>>,
+    Json(ChangeWidgetName { widget_name }): Json<ChangeWidgetName>,
+) -> impl IntoResponse {
+    match service.change_widget_name(widget_id, widget_name).await {
+        Ok(_) => StatusCode::ACCEPTED.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
+}
+
+async fn change_widget_description<S: WidgetService>(
+    Path(widget_id): Path<String>,
+    State(service): State<Arc<S>>,
+    Json(ChangeWidgetDescription { widget_description }): Json<ChangeWidgetDescription>,
+) -> impl IntoResponse {
+    match service
+        .change_widget_description(widget_id, widget_description)
+        .await
+    {
+        Ok(_) => StatusCode::ACCEPTED.into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+    }
 }
 
 async fn shutdown_signal() {
