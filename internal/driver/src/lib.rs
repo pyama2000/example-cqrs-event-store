@@ -1,30 +1,64 @@
+use std::sync::Arc;
+
+use app::WidgetService;
+use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
-use lib::Result;
+use lib::Error;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
 
 #[derive(Debug, Clone)]
-pub struct Server<T: ToSocketAddrs> {
+pub struct Server<T: ToSocketAddrs, S: WidgetService> {
     addr: T,
-    router: Router,
+    service: Arc<S>,
 }
 
-impl<T: ToSocketAddrs> Server<T> {
-    pub fn new(addr: T) -> Self {
-        Self {
-            addr,
-            router: Router::new(),
-        }
+impl<T: ToSocketAddrs, S: WidgetService + Send + Sync + 'static> Server<T, S> {
+    pub fn new(addr: T, service: Arc<S>) -> Self {
+        Self { addr, service }
     }
 
-    pub async fn run(self) -> Result<()> {
-        let app = self
-            .router
-            .route("/healthz", get(|| async { StatusCode::OK }));
+    pub async fn run(self) -> Result<(), Error> {
+        let router = Router::new()
+            .route("/healthz", get(|| async { StatusCode::OK }))
+            .route(
+                "/create",
+                post(|State(service): State<Arc<S>>| async move {
+                    match service.create_widget(String::new(), String::new()).await {
+                        Ok(_) => Ok(StatusCode::CREATED),
+                        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+                    }
+                }),
+            )
+            .route(
+                "/name",
+                post(|State(service): State<Arc<S>>| async move {
+                    match service
+                        .change_widget_name(String::new(), String::new())
+                        .await
+                    {
+                        Ok(_) => Ok(StatusCode::ACCEPTED),
+                        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+                    }
+                }),
+            )
+            .route(
+                "/description",
+                post(|State(service): State<Arc<S>>| async move {
+                    match service
+                        .change_widget_description(String::new(), String::new())
+                        .await
+                    {
+                        Ok(_) => Ok(StatusCode::ACCEPTED),
+                        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+                    }
+                }),
+            )
+            .with_state(self.service);
         let listener = TcpListener::bind(&self.addr).await?;
-        axum::serve(listener, app)
+        axum::serve(listener, router)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
         Ok(())
