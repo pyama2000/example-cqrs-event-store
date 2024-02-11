@@ -181,6 +181,14 @@ impl WidgetCommandExecutor<bool, bool, bool> {
         if !self.is_widget_description_valid {
             return Err(Box::new(CommandError::InvalidWidgetDescription));
         }
+        let aggregate_version = match self.command {
+            WidgetCommand::CreateWidget(_) => 0,
+            _ => self
+                .aggregate
+                .version
+                .checked_add(1)
+                .ok_or(Box::new(CommandError::VersionUpdateLimitReached))?,
+        };
         let events = match self.command {
             WidgetCommand::CreateWidget(event)
             | WidgetCommand::ChangeWidgetName(event)
@@ -189,11 +197,7 @@ impl WidgetCommandExecutor<bool, bool, bool> {
         Ok(WidgetCommandState {
             widget_id: self.aggregate.id,
             events,
-            aggregate_version: self
-                .aggregate
-                .version
-                .checked_add(1)
-                .ok_or(Box::new(CommandError::VersionUpdateLimitReached))?,
+            aggregate_version,
         })
     }
 }
