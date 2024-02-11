@@ -1,7 +1,7 @@
 use lib::Result;
 
 use crate::command::WidgetCommand;
-use crate::error::{AggregateError, CommandError};
+use crate::error::CommandError;
 use crate::event::WidgetEvent;
 use crate::Id;
 
@@ -173,7 +173,8 @@ impl WidgetCommandExecutor<bool, bool, bool> {
     /// コマンドの実行結果を返す
     fn execute(self) -> Result<WidgetCommandState> {
         if !self.is_events_valid {
-            return Err(Box::new(CommandError::InvalidEvent));
+            // コマンドに不正なイベントが含まれるときのエラー
+            return Err("Invalid event found".into());
         }
         if !self.is_widget_name_valid {
             return Err(Box::new(CommandError::InvalidWidgetName));
@@ -187,7 +188,7 @@ impl WidgetCommandExecutor<bool, bool, bool> {
                 .aggregate
                 .version
                 .checked_add(1)
-                .ok_or(Box::new(CommandError::VersionUpdateLimitReached))?,
+                .ok_or("Cannot update Aggregate version")?,
         };
         let events = match self.command {
             WidgetCommand::CreateWidget(event)
@@ -249,7 +250,8 @@ impl WidgetAggregateState {
             }
         }
         if self.aggregate.version != self.aggregate_version {
-            return Err(Box::new(AggregateError::NotMatchVersion));
+            // イベントから Aggregate を復元時のバージョンが合わないときのエラー
+            return Err("Not match aggregate version".into());
         }
         Ok(self.aggregate)
     }

@@ -55,7 +55,6 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
     fn handling_command_error(&self, err: Error) -> Error {
         match err.downcast_ref::<CommandError>() {
             Some(e) => match e {
-                CommandError::VersionUpdateLimitReached | CommandError::InvalidEvent => err,
                 CommandError::InvalidWidgetName | CommandError::InvalidWidgetDescription => {
                     Box::new(WidgetServiceError::InvalidValue)
                 }

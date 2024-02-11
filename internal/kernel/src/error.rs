@@ -3,12 +3,6 @@ use thiserror::Error;
 /// コマンドの実行に失敗したことを表す
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CommandError {
-    /// Aggregate のバージョンが上限を超えたときのエラー
-    #[error("Cannot update Aggregate version")]
-    VersionUpdateLimitReached,
-    /// コマンドに不正なイベントが含まれるときのエラー
-    #[error("Invalid event found")]
-    InvalidEvent,
     /// イベントに含まれる部品の名前が不正なフォーマットのときのエラー
     #[error("Invalid name for the widget")]
     InvalidWidgetName,
@@ -22,7 +16,4 @@ pub enum AggregateError {
     /// Aggregate が既に更新さているときのエラー
     #[error("Aggregate is already updated")]
     Conflict,
-    /// イベントから Aggregate を復元時のバージョンが合わないときのエラー
-    #[error("Not match aggregate version")]
-    NotMatchVersion,
 }
