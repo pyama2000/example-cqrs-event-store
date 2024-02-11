@@ -322,6 +322,7 @@ dependencies = [
  "app",
  "axum",
  "lib",
+ "serde_json",
  "tokio",
 ]
 

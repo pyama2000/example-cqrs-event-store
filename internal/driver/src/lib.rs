@@ -4,7 +4,7 @@ use app::WidgetService;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
-use axum::Router;
+use axum::{Json, Router};
 use lib::Error;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
@@ -27,7 +27,10 @@ impl<T: ToSocketAddrs, S: WidgetService + Send + Sync + 'static> Server<T, S> {
                 "/create",
                 post(|State(service): State<Arc<S>>| async move {
                     match service.create_widget(String::new(), String::new()).await {
-                        Ok(_) => Ok(StatusCode::CREATED),
+                        Ok(id) => Ok((
+                            StatusCode::CREATED,
+                            Json(serde_json::json!({ "widget_id": id })),
+                        )),
                         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
                     }
                 }),
