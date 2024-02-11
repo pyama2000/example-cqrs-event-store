@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use app::WidgetService;
 use axum::extract::{Path, State};
@@ -9,6 +10,7 @@ use lib::Error;
 use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
+use tower_http::timeout::TimeoutLayer;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs, S: WidgetService> {
@@ -97,7 +99,8 @@ impl<T: ToSocketAddrs + std::fmt::Display, S: WidgetService + Send + Sync + 'sta
                             ),
                     ),
             )
-            .with_state(self.service);
+            .with_state(self.service)
+            .layer(TimeoutLayer::new(Duration::from_millis(100)));
         let listener = TcpListener::bind(&self.addr).await?;
         println!("listening: {}", &self.addr);
         axum::serve(listener, router)
