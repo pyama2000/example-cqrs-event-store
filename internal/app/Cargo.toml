@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 kernel = { version = "0.1.0", path = "../kernel" }
 lib = { version = "0.1.0", path = "../lib" }
+thiserror = "1.0.56"

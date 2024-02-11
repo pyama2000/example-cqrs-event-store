@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use app::WidgetService;
+use app::{WidgetService, WidgetServiceError};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
@@ -76,7 +76,7 @@ async fn create_widget<S: WidgetService>(
             Json(serde_json::json!({ "widget_id": id })),
         )
             .into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => handling_service_error(e).into_response(),
     }
 }
 
@@ -87,7 +87,7 @@ async fn change_widget_name<S: WidgetService>(
 ) -> impl IntoResponse {
     match service.change_widget_name(widget_id, widget_name).await {
         Ok(_) => StatusCode::ACCEPTED.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => handling_service_error(e).into_response(),
     }
 }
 
@@ -101,7 +101,18 @@ async fn change_widget_description<S: WidgetService>(
         .await
     {
         Ok(_) => StatusCode::ACCEPTED.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response(),
+        Err(e) => handling_service_error(e).into_response(),
+    }
+}
+
+fn handling_service_error(err: Error) -> impl IntoResponse {
+    match err.downcast_ref::<WidgetServiceError>() {
+        Some(e) => match e {
+            WidgetServiceError::AggregateNotFound => StatusCode::NOT_FOUND.into_response(),
+            WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
+            WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
+        },
+        None => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
 }
 
