@@ -2,7 +2,7 @@ use std::future::Future;
 
 use kernel::aggregate::WidgetAggregate;
 use kernel::command::WidgetCommand;
-use kernel::error::AggregateError;
+use kernel::error::{AggregateError, CommandError};
 use kernel::processor::CommandProcessor;
 use lib::{Error, Result};
 use thiserror::Error;
@@ -12,6 +12,9 @@ pub enum WidgetServiceError {
     /// Aggregate が既に更新さているときのエラー
     #[error("Aggregate is already updated")]
     AggregateConfilict,
+    /// 要求された値が不正なときのエラー
+    #[error("Invalid value")]
+    InvalidValue,
 }
 
 /// 部品 (Widget) のユースケース処理のインターフェイス
@@ -46,6 +49,18 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
         Self { command }
     }
 
+    fn handling_command_error(&self, err: Error) -> Error {
+        match err.downcast_ref::<CommandError>() {
+            Some(e) => match e {
+                CommandError::VersionUpdateLimitReached | CommandError::InvalidEvent => err,
+                CommandError::InvalidWidgetName | CommandError::InvalidWidgetDescription => {
+                    Box::new(WidgetServiceError::InvalidValue)
+                }
+            },
+            None => err,
+        }
+    }
+
     fn handling_aggregate_error(&self, err: Error) -> Result<()> {
         match err.downcast_ref::<AggregateError>() {
             Some(AggregateError::Conflict) => Ok(()),
@@ -63,7 +78,9 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         let aggregate = WidgetAggregate::default();
         let widget_id = aggregate.id().to_string();
         let command = WidgetCommand::create_widget(widget_name, widget_description);
-        let command_state = aggregate.apply_command(command)?;
+        let command_state = aggregate
+            .apply_command(command)
+            .map_err(|e| self.handling_command_error(e))?;
         self.command.create_widget_aggregate(command_state).await?;
         Ok(widget_id)
     }
@@ -81,7 +98,9 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
                 .await?
                 .ok_or("Aggregate not found")?;
             let command = WidgetCommand::change_widget_name(widget_name.clone());
-            let command_state = aggregate.apply_command(command)?;
+            let command_state = aggregate
+                .apply_command(command)
+                .map_err(|e| self.handling_command_error(e))?;
             let result = self.command.update_widget_aggregate(command_state).await;
             if result.is_ok() {
                 break;
@@ -109,7 +128,9 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
                 .await?
                 .ok_or("Aggregate not found")?;
             let command = WidgetCommand::change_widget_description(widget_description.clone());
-            let command_state = aggregate.apply_command(command)?;
+            let command_state = aggregate
+                .apply_command(command)
+                .map_err(|e| self.handling_command_error(e))?;
             let result = self.command.update_widget_aggregate(command_state).await;
             if result.is_ok() {
                 break;

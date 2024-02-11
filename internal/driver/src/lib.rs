@@ -109,6 +109,7 @@ fn handling_service_error(err: Error) -> impl IntoResponse {
     match err.downcast_ref::<WidgetServiceError>() {
         Some(e) => match e {
             WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
+            WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
         },
         None => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
