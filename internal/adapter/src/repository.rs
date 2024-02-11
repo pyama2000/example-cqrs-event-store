@@ -55,7 +55,7 @@ impl CommandProcessor for WidgetRepository {
             };
         // ビジネスロジックの適用の前にイベントと集約のデータが正しい状態にあることを保証するために
         // 前回集約が保存された際に作成されたイベントを Event テーブルに個々の項目として永続化する
-        let widget_id = model.widget_id().to_string();
+        let widget_id = widget_id.to_string();
         let aggregate_version = model.aggregate_version();
         let WidgetEventModels(models) = model.try_into()?;
         let mut tx = self.pool.begin().await?;
@@ -82,7 +82,7 @@ impl CommandProcessor for WidgetRepository {
         let models: Vec<WidgetEventModel> =
             // NOTE: 時系列にしたがってイベントから集約を復元するために event_id の昇順でソートする
             sqlx::query_as("SELECT * FROM event WHERE widget_id = ? ORDER BY event_id ASC")
-                .bind(widget_id)
+                .bind(&widget_id)
                 .fetch_all(&self.pool)
                 .await?;
         let mappers: Vec<Result<WidgetEventMapper>> =
@@ -97,8 +97,13 @@ impl CommandProcessor for WidgetRepository {
         }
         let events: Vec<_> = events.into_iter().map(|x| x.unwrap()).collect();
         Ok(Some(
-            WidgetAggregateState::new(WidgetAggregate::default(), events, aggregate_version)
-                .restore()?,
+            WidgetAggregateState::new(
+                WidgetAggregate::default(),
+                events,
+                widget_id.parse()?,
+                aggregate_version,
+            )
+            .restore()?,
         ))
     }
 

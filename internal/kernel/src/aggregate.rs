@@ -205,6 +205,7 @@ impl WidgetCommandExecutor<bool, bool, bool> {
 pub struct WidgetAggregateState {
     aggregate: WidgetAggregate,
     events: Vec<WidgetEvent>,
+    widget_id: Id<WidgetAggregate>,
     aggregate_version: u64,
 }
 
@@ -212,16 +213,19 @@ impl WidgetAggregateState {
     pub fn new(
         aggregate: WidgetAggregate,
         events: Vec<WidgetEvent>,
+        widget_id: Id<WidgetAggregate>,
         aggregate_version: u64,
     ) -> Self {
         Self {
             aggregate,
             events,
+            widget_id,
             aggregate_version,
         }
     }
 
     pub fn restore(mut self) -> Result<WidgetAggregate> {
+        self.aggregate.id = self.widget_id;
         for event in &self.events {
             match event {
                 WidgetEvent::WidgetCreated {
