@@ -16,7 +16,7 @@ pub struct Server<T: ToSocketAddrs, S: WidgetService> {
     service: Arc<S>,
 }
 
-impl<T: ToSocketAddrs, S: WidgetService + Send + Sync + 'static> Server<T, S> {
+impl<T: ToSocketAddrs + std::fmt::Display, S: WidgetService + Send + Sync + 'static> Server<T, S> {
     pub fn new(addr: T, service: Arc<S>) -> Self {
         Self { addr, service }
     }
@@ -53,8 +53,8 @@ impl<T: ToSocketAddrs, S: WidgetService + Send + Sync + 'static> Server<T, S> {
                             .route(
                                 "/name",
                                 post(
-                                    |Path(widget_id): Path<String>,
-                                     State(service): State<Arc<S>>,
+                                    |State(service): State<Arc<S>>,
+                                     Path(widget_id): Path<String>,
                                      Json(ChangeWidgetName { widget_name }): Json<
                                         ChangeWidgetName,
                                     >| async move {
@@ -74,8 +74,8 @@ impl<T: ToSocketAddrs, S: WidgetService + Send + Sync + 'static> Server<T, S> {
                             .route(
                                 "/description",
                                 post(
-                                    |Path(widget_id): Path<String>,
-                                     State(service): State<Arc<S>>,
+                                    |State(service): State<Arc<S>>,
+                                     Path(widget_id): Path<String>,
                                      Json(ChangeWidgetDescription { widget_description }): Json<
                                         ChangeWidgetDescription,
                                     >| async move {
@@ -99,6 +99,7 @@ impl<T: ToSocketAddrs, S: WidgetService + Send + Sync + 'static> Server<T, S> {
             )
             .with_state(self.service);
         let listener = TcpListener::bind(&self.addr).await?;
+        println!("listening: {}", &self.addr);
         axum::serve(listener, router)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
