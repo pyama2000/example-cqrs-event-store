@@ -2,8 +2,17 @@ use std::future::Future;
 
 use kernel::aggregate::WidgetAggregate;
 use kernel::command::WidgetCommand;
+use kernel::error::AggregateError;
 use kernel::processor::CommandProcessor;
-use lib::Result;
+use lib::{Error, Result};
+use thiserror::Error;
+
+#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WidgetServiceError {
+    /// Aggregate が既に更新さているときのエラー
+    #[error("Aggregate is already updated")]
+    AggregateConfilict,
+}
 
 /// 部品 (Widget) のユースケース処理のインターフェイス
 pub trait WidgetService {
@@ -36,6 +45,13 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
     pub fn new(command: C) -> Self {
         Self { command }
     }
+
+    fn handling_aggregate_error(&self, err: Error) -> Result<()> {
+        match err.downcast_ref::<AggregateError>() {
+            Some(AggregateError::Conflict) => Ok(()),
+            _ => Err(err),
+        }
+    }
 }
 
 impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
@@ -53,14 +69,27 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
     }
 
     async fn change_widget_name(&self, widget_id: String, widget_name: String) -> Result<()> {
-        let aggregate = self
-            .command
-            .get_widget_aggregate(widget_id.parse()?)
-            .await?
-            .ok_or("Aggregate not found")?;
-        let command = WidgetCommand::change_widget_name(widget_name);
-        let command_state = aggregate.apply_command(command)?;
-        self.command.update_widget_aggregate(command_state).await
+        const MAX_RETRY_COUNT: u32 = 3;
+        let mut retry_count = 0;
+        loop {
+            if retry_count > MAX_RETRY_COUNT {
+                return Err(Box::new(WidgetServiceError::AggregateConfilict));
+            }
+            let aggregate = self
+                .command
+                .get_widget_aggregate(widget_id.parse()?)
+                .await?
+                .ok_or("Aggregate not found")?;
+            let command = WidgetCommand::change_widget_name(widget_name.clone());
+            let command_state = aggregate.apply_command(command)?;
+            let result = self.command.update_widget_aggregate(command_state).await;
+            if result.is_ok() {
+                break;
+            }
+            self.handling_aggregate_error(result.err().unwrap())?;
+            retry_count += 1;
+        }
+        Ok(())
     }
 
     async fn change_widget_description(
@@ -68,13 +97,26 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         widget_id: String,
         widget_description: String,
     ) -> Result<()> {
-        let aggregate = self
-            .command
-            .get_widget_aggregate(widget_id.parse()?)
-            .await?
-            .ok_or("Aggregate not found")?;
-        let command = WidgetCommand::change_widget_description(widget_description);
-        let command_state = aggregate.apply_command(command)?;
-        self.command.update_widget_aggregate(command_state).await
+        const MAX_RETRY_COUNT: u32 = 3;
+        let mut retry_count = 0;
+        loop {
+            if retry_count > MAX_RETRY_COUNT {
+                return Err(Box::new(WidgetServiceError::AggregateConfilict));
+            }
+            let aggregate = self
+                .command
+                .get_widget_aggregate(widget_id.parse()?)
+                .await?
+                .ok_or("Aggregate not found")?;
+            let command = WidgetCommand::change_widget_description(widget_description.clone());
+            let command_state = aggregate.apply_command(command)?;
+            let result = self.command.update_widget_aggregate(command_state).await;
+            if result.is_ok() {
+                break;
+            }
+            self.handling_aggregate_error(result.err().unwrap())?;
+            retry_count += 1;
+        }
+        Ok(())
     }
 }
