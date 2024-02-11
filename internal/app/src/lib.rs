@@ -56,7 +56,7 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
         match err.downcast_ref::<CommandError>() {
             Some(e) => match e {
                 CommandError::InvalidWidgetName | CommandError::InvalidWidgetDescription => {
-                    Box::new(WidgetServiceError::InvalidValue)
+                    WidgetServiceError::InvalidValue.into()
                 }
             },
             None => err,
@@ -92,7 +92,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         let mut retry_count = 0;
         loop {
             if retry_count > MAX_RETRY_COUNT {
-                return Err(Box::new(WidgetServiceError::AggregateConfilict));
+                return Err(WidgetServiceError::AggregateConfilict.into());
             }
             let aggregate = self
                 .command
@@ -122,7 +122,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         let mut retry_count = 0;
         loop {
             if retry_count > MAX_RETRY_COUNT {
-                return Err(Box::new(WidgetServiceError::AggregateConfilict));
+                return Err(WidgetServiceError::AggregateConfilict.into());
             }
             let aggregate = self
                 .command

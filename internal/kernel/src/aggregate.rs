@@ -177,10 +177,10 @@ impl WidgetCommandExecutor<bool, bool, bool> {
             return Err("Invalid event found".into());
         }
         if !self.is_widget_name_valid {
-            return Err(Box::new(CommandError::InvalidWidgetName));
+            return Err(CommandError::InvalidWidgetName.into());
         }
         if !self.is_widget_description_valid {
-            return Err(Box::new(CommandError::InvalidWidgetDescription));
+            return Err(CommandError::InvalidWidgetDescription.into());
         }
         let aggregate_version = match self.command {
             WidgetCommand::CreateWidget(_) => 0,

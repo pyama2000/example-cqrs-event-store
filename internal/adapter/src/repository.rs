@@ -50,7 +50,7 @@ impl CommandProcessor for WidgetRepository {
                 Ok(x) => x,
                 Err(e) => match e {
                     sqlx::Error::RowNotFound => return Ok(None),
-                    _ => return Err(Box::new(e)),
+                    _ => return Err(e.into()),
                 },
             };
         // ビジネスロジックの適用の前にイベントと集約のデータが正しい状態にあることを保証するために
@@ -73,7 +73,7 @@ impl CommandProcessor for WidgetRepository {
                 match e.as_database_error() {
                     // NOTE: イベントが既に存在してもイベントは変更不可能なのでエラーを無視する
                     Some(e) if e.is_unique_violation() => continue,
-                    _ => return Err(Box::new(e)),
+                    _ => return Err(e.into()),
                 }
             }
         }
@@ -131,7 +131,7 @@ impl CommandProcessor for WidgetRepository {
         .await?;
         // NOTE: 同時接続で既に Aggregate が更新されていた場合はエラーを返す
         if result.rows_affected() == 0 {
-            return Err(Box::new(AggregateError::Conflict));
+            return Err(AggregateError::Conflict.into());
         }
         tx.commit().await?;
         Ok(())
