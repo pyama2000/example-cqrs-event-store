@@ -32,6 +32,12 @@ pub struct WidgetServiceImpl<C: CommandProcessor> {
     command: C,
 }
 
+impl<C: CommandProcessor> WidgetServiceImpl<C> {
+    pub fn new(command: C) -> Self {
+        Self { command }
+    }
+}
+
 impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
     async fn create_widget(
         &self,

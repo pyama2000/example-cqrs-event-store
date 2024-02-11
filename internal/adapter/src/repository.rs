@@ -11,6 +11,12 @@ pub struct WidgetRepository {
     pool: ConnectionPool,
 }
 
+impl WidgetRepository {
+    pub fn new(pool: ConnectionPool) -> Self {
+        Self { pool }
+    }
+}
+
 impl CommandProcessor for WidgetRepository {
     async fn create_widget_aggregate(
         &self,
