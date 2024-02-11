@@ -9,6 +9,9 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WidgetServiceError {
+    /// Aggregate が存在しないときのエラー
+    #[error("Aggregate not found")]
+    AggregateNotFound,
     /// Aggregate が既に更新さているときのエラー
     #[error("Aggregate is already updated")]
     AggregateConfilict,
@@ -96,7 +99,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
                 .command
                 .get_widget_aggregate(widget_id.parse()?)
                 .await?
-                .ok_or("Aggregate not found")?;
+                .ok_or(WidgetServiceError::AggregateNotFound)?;
             let command = WidgetCommand::change_widget_name(widget_name.clone());
             let command_state = aggregate
                 .apply_command(command)
@@ -126,7 +129,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
                 .command
                 .get_widget_aggregate(widget_id.parse()?)
                 .await?
-                .ok_or("Aggregate not found")?;
+                .ok_or(WidgetServiceError::AggregateNotFound)?;
             let command = WidgetCommand::change_widget_description(widget_description.clone());
             let command_state = aggregate
                 .apply_command(command)

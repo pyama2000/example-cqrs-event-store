@@ -108,6 +108,7 @@ async fn change_widget_description<S: WidgetService>(
 fn handling_service_error(err: Error) -> impl IntoResponse {
     match err.downcast_ref::<WidgetServiceError>() {
         Some(e) => match e {
+            WidgetServiceError::AggregateNotFound => StatusCode::NOT_FOUND.into_response(),
             WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
             WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
         },
