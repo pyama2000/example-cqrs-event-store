@@ -1,14 +1,12 @@
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+pub type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+pub type Result<T> = core::result::Result<T, Error>;
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
+pub fn database_url() -> String {
+    format!(
+        "mysql://{}:{}@127.0.0.1:{}/{}",
+        option_env!("MYSQL_USERNAME").unwrap_or("root"),
+        option_env!("MYSQL_PASSWORD").unwrap_or("root"),
+        option_env!("MYSQL_PORT").unwrap_or("3306"),
+        option_env!("MYSQL_DATABASE").unwrap_or("widget")
+    )
 }
