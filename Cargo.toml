@@ -2,6 +2,7 @@
 name = "example-cqrs-event-store"
 version = "0.1.0"
 edition = "2021"
+default-run = "example-cqrs-event-store"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -11,7 +12,15 @@ app = { version = "0.1.0", path = "internal/app" }
 driver = { version = "0.1.0", path = "internal/driver" }
 kernel = { version = "0.1.0", path = "internal/kernel" }
 lib = { version = "0.1.0", path = "internal/lib" }
+sqlx = { version = "0.7.3", features = ["runtime-tokio", "mysql"], optional = true }
 tokio = { version = "1.36.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [workspace]
 members = [ "internal/adapter", "internal/app","internal/driver", "internal/kernel", "internal/lib"]
+
+[features]
+migrate = ["sqlx"]
+
+[[bin]]
+name = "migrate"
+required-features = ["migrate"]
