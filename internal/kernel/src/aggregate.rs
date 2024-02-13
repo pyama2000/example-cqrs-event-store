@@ -15,6 +15,13 @@ pub struct WidgetAggregate {
 }
 
 impl WidgetAggregate {
+    pub fn new(id: Id<WidgetAggregate>) -> Self {
+        Self {
+            id,
+            ..Default::default()
+        }
+    }
+
     /// 部品の id
     pub fn id(&self) -> &Id<WidgetAggregate> {
         &self.id
@@ -40,6 +47,37 @@ impl WidgetAggregate {
         WidgetCommandExecutor::new(self, command)
             .validate()
             .execute()
+    }
+
+    /// イベントを読み込んで状態を復元する
+    pub fn load_events(mut self, events: Vec<WidgetEvent>, version: u64) -> Result<Self> {
+        for event in events {
+            match event {
+                WidgetEvent::WidgetCreated {
+                    widget_name,
+                    widget_description,
+                    ..
+                } => {
+                    self.name = widget_name;
+                    self.description = widget_description;
+                }
+                WidgetEvent::WidgetNameChanged { widget_name, .. } => {
+                    self.name = widget_name;
+                    self.version += 1;
+                }
+                WidgetEvent::WidgetDescriptionChanged {
+                    widget_description, ..
+                } => {
+                    self.description = widget_description;
+                    self.version += 1;
+                }
+            }
+        }
+        if self.version != version {
+            // イベントから Aggregate を復元時のバージョンが合わないときのエラー
+            return Err("Not match aggregate version".into());
+        }
+        Ok(self)
     }
 }
 
@@ -200,59 +238,5 @@ impl WidgetCommandExecutor<bool, bool, bool> {
             events,
             aggregate_version,
         })
-    }
-}
-
-pub struct WidgetAggregateState {
-    aggregate: WidgetAggregate,
-    events: Vec<WidgetEvent>,
-    widget_id: Id<WidgetAggregate>,
-    aggregate_version: u64,
-}
-
-impl WidgetAggregateState {
-    pub fn new(
-        aggregate: WidgetAggregate,
-        events: Vec<WidgetEvent>,
-        widget_id: Id<WidgetAggregate>,
-        aggregate_version: u64,
-    ) -> Self {
-        Self {
-            aggregate,
-            events,
-            widget_id,
-            aggregate_version,
-        }
-    }
-
-    pub fn restore(mut self) -> Result<WidgetAggregate> {
-        self.aggregate.id = self.widget_id;
-        for event in &self.events {
-            match event {
-                WidgetEvent::WidgetCreated {
-                    widget_name,
-                    widget_description,
-                    ..
-                } => {
-                    self.aggregate.name = widget_name.to_string();
-                    self.aggregate.description = widget_description.to_string();
-                }
-                WidgetEvent::WidgetNameChanged { widget_name, .. } => {
-                    self.aggregate.name = widget_name.to_string();
-                    self.aggregate.version += 1;
-                }
-                WidgetEvent::WidgetDescriptionChanged {
-                    widget_description, ..
-                } => {
-                    self.aggregate.description = widget_description.to_string();
-                    self.aggregate.version += 1;
-                }
-            }
-        }
-        if self.aggregate.version != self.aggregate_version {
-            // イベントから Aggregate を復元時のバージョンが合わないときのエラー
-            return Err("Not match aggregate version".into());
-        }
-        Ok(self.aggregate)
     }
 }

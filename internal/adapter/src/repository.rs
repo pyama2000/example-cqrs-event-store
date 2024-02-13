@@ -1,4 +1,4 @@
-use kernel::aggregate::{WidgetAggregate, WidgetAggregateState};
+use kernel::aggregate::WidgetAggregate;
 use kernel::error::AggregateError;
 use kernel::event::WidgetEvent;
 use kernel::processor::CommandProcessor;
@@ -97,13 +97,7 @@ impl CommandProcessor for WidgetRepository {
         }
         let events: Vec<_> = events.into_iter().map(|x| x.unwrap()).collect();
         Ok(Some(
-            WidgetAggregateState::new(
-                WidgetAggregate::default(),
-                events,
-                widget_id.parse()?,
-                aggregate_version,
-            )
-            .restore()?,
+            WidgetAggregate::new(widget_id.parse()?).load_events(events, aggregate_version)?,
         ))
     }
 
