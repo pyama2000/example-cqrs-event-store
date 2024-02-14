@@ -2,12 +2,12 @@ use std::future::Future;
 
 use kernel::aggregate::WidgetAggregate;
 use kernel::command::WidgetCommand;
-use kernel::error::{AggregateError, CommandError};
+use kernel::error::{AggregateError, ApplyCommandError};
 use kernel::processor::CommandProcessor;
 use lib::{Error, Result};
 use thiserror::Error;
 
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Error, Debug)]
 pub enum WidgetServiceError {
     /// Aggregate が存在しないときのエラー
     #[error("Aggregate not found")]
@@ -18,6 +18,19 @@ pub enum WidgetServiceError {
     /// 要求された値が不正なときのエラー
     #[error("Invalid value")]
     InvalidValue,
+    #[error("error")]
+    Unknow(lib::Error),
+}
+
+impl From<ApplyCommandError> for WidgetServiceError {
+    fn from(value: ApplyCommandError) -> Self {
+        match value {
+            ApplyCommandError::InvalidWidgetName | ApplyCommandError::InvalidWidgetDescription => {
+                WidgetServiceError::InvalidValue
+            }
+            ApplyCommandError::VersionOverflow => WidgetServiceError::Unknow(value.into()),
+        }
+    }
 }
 
 /// 部品 (Widget) のユースケース処理のインターフェイス
@@ -52,17 +65,6 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
         Self { command }
     }
 
-    fn handling_command_error(&self, err: Error) -> Error {
-        match err.downcast_ref::<CommandError>() {
-            Some(e) => match e {
-                CommandError::InvalidWidgetName | CommandError::InvalidWidgetDescription => {
-                    WidgetServiceError::InvalidValue.into()
-                }
-            },
-            None => err,
-        }
-    }
-
     fn handling_aggregate_error(&self, err: Error) -> Result<()> {
         match err.downcast_ref::<AggregateError>() {
             Some(AggregateError::Conflict) => Ok(()),
@@ -85,7 +87,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         };
         let command_state = aggregate
             .apply_command(command)
-            .map_err(|e| self.handling_command_error(e))?;
+            .map_err(WidgetServiceError::from)?;
         self.command.create_widget_aggregate(command_state).await?;
         Ok(widget_id)
     }
@@ -107,7 +109,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             };
             let command_state = aggregate
                 .apply_command(command)
-                .map_err(|e| self.handling_command_error(e))?;
+                .map_err(WidgetServiceError::from)?;
             let result = self.command.update_widget_aggregate(command_state).await;
             if result.is_ok() {
                 break;
@@ -139,7 +141,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             };
             let command_state = aggregate
                 .apply_command(command)
-                .map_err(|e| self.handling_command_error(e))?;
+                .map_err(WidgetServiceError::from)?;
             let result = self.command.update_widget_aggregate(command_state).await;
             if result.is_ok() {
                 break;

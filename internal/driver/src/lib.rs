@@ -111,6 +111,9 @@ fn handling_service_error(err: Error) -> impl IntoResponse {
             WidgetServiceError::AggregateNotFound => StatusCode::NOT_FOUND.into_response(),
             WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
             WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
+            WidgetServiceError::Unknow(e) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+            }
         },
         None => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()).into_response(),
     }
