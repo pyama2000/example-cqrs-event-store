@@ -45,7 +45,7 @@ impl WidgetAggregate {
     /// 集約にコマンドを実行する
     pub fn apply_command(self, command: WidgetCommand) -> Result<WidgetCommandState> {
         WidgetCommandExecutor::new(self, command)
-            .validate()
+            .validate()?
             .execute()
     }
 
@@ -106,38 +106,37 @@ impl WidgetCommandState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Valid;
+
 /// 集約 (Aggregate) に対する `WidgetCommand` が有効か確認して `WidgetCommandState` を作成するビルダー
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct WidgetCommandExecutor<IsEventsValid, IsNameValid, IsDescriptionValid> {
+struct WidgetCommandExecutor<EventValid, FormatValid> {
     aggregate: WidgetAggregate,
     command: WidgetCommand,
-    is_events_valid: IsEventsValid,
-    is_widget_name_valid: IsNameValid,
-    is_widget_description_valid: IsDescriptionValid,
+    event_valid: EventValid,
+    format_valid: FormatValid,
 }
 
-impl WidgetCommandExecutor<(), (), ()> {
+impl WidgetCommandExecutor<(), ()> {
     fn new(aggregate: WidgetAggregate, command: WidgetCommand) -> Self {
         Self {
             aggregate,
             command,
-            is_events_valid: (),
-            is_widget_name_valid: (),
-            is_widget_description_valid: (),
+            event_valid: (),
+            format_valid: (),
         }
     }
 
     /// Aggregate に対するコマンドが有効か確認する
-    fn validate(self) -> WidgetCommandExecutor<bool, bool, bool> {
-        self.validate_events()
-            .validate_widget_name()
-            .validate_widget_description()
+    fn validate(self) -> Result<WidgetCommandExecutor<Valid, Valid>> {
+        self.validate_events()?.validate_format()
     }
 }
 
-impl WidgetCommandExecutor<(), (), ()> {
+impl WidgetCommandExecutor<(), ()> {
     /// コマンドに含まれるイベントが有効か確認する
-    fn validate_events(self) -> WidgetCommandExecutor<bool, (), ()> {
+    fn validate_events(self) -> Result<WidgetCommandExecutor<Valid, ()>> {
         let is_events_valid = match &self.command {
             WidgetCommand::CreateWidget(event) => {
                 matches!(event, WidgetEvent::WidgetCreated { .. })
@@ -149,20 +148,23 @@ impl WidgetCommandExecutor<(), (), ()> {
                 matches!(event, WidgetEvent::WidgetDescriptionChanged { .. })
             }
         };
-        WidgetCommandExecutor {
+        if !is_events_valid {
+            // コマンドに不正なイベントが含まれるときのエラー
+            return Err("Invalid event found".into());
+        }
+        Ok(WidgetCommandExecutor {
             aggregate: self.aggregate,
             command: self.command,
-            is_events_valid,
-            is_widget_name_valid: self.is_widget_name_valid,
-            is_widget_description_valid: self.is_widget_description_valid,
-        }
+            event_valid: Valid,
+            format_valid: self.format_valid,
+        })
     }
 }
 
-impl<IsNameValid, IsDescriptionValid> WidgetCommandExecutor<bool, IsNameValid, IsDescriptionValid> {
+impl WidgetCommandExecutor<Valid, ()> {
     /// イベントの部品の名前が有効か確認する
-    fn validate_widget_name(self) -> WidgetCommandExecutor<bool, bool, IsDescriptionValid> {
-        let is_widget_name_valid = match &self.command {
+    fn validate_format(self) -> Result<WidgetCommandExecutor<Valid, Valid>> {
+        let is_widget_name_format_valid = match &self.command {
             WidgetCommand::CreateWidget(event) | WidgetCommand::ChangeWidgetName(event) => {
                 match event {
                     WidgetEvent::WidgetCreated { widget_name, .. }
@@ -172,18 +174,10 @@ impl<IsNameValid, IsDescriptionValid> WidgetCommandExecutor<bool, IsNameValid, I
             }
             WidgetCommand::ChangeWidgetDescription(_) => true,
         };
-        WidgetCommandExecutor {
-            aggregate: self.aggregate,
-            command: self.command,
-            is_events_valid: self.is_events_valid,
-            is_widget_name_valid,
-            is_widget_description_valid: self.is_widget_description_valid,
+        if !is_widget_name_format_valid {
+            return Err(CommandError::InvalidWidgetName.into());
         }
-    }
-
-    /// イベントの部品の説明が有効か確認する
-    fn validate_widget_description(self) -> WidgetCommandExecutor<bool, IsNameValid, bool> {
-        let is_widget_description_valid = match &self.command {
+        let is_widget_description_format_valid = match &self.command {
             WidgetCommand::CreateWidget(event) | WidgetCommand::ChangeWidgetDescription(event) => {
                 match event {
                     WidgetEvent::WidgetCreated {
@@ -197,29 +191,21 @@ impl<IsNameValid, IsDescriptionValid> WidgetCommandExecutor<bool, IsNameValid, I
             }
             WidgetCommand::ChangeWidgetName(_) => true,
         };
-        WidgetCommandExecutor {
+        if !is_widget_description_format_valid {
+            return Err(CommandError::InvalidWidgetDescription.into());
+        }
+        Ok(WidgetCommandExecutor {
             aggregate: self.aggregate,
             command: self.command,
-            is_events_valid: self.is_events_valid,
-            is_widget_name_valid: self.is_widget_name_valid,
-            is_widget_description_valid,
-        }
+            event_valid: self.event_valid,
+            format_valid: Valid,
+        })
     }
 }
 
-impl WidgetCommandExecutor<bool, bool, bool> {
+impl WidgetCommandExecutor<Valid, Valid> {
     /// コマンドの実行結果を返す
     fn execute(self) -> Result<WidgetCommandState> {
-        if !self.is_events_valid {
-            // コマンドに不正なイベントが含まれるときのエラー
-            return Err("Invalid event found".into());
-        }
-        if !self.is_widget_name_valid {
-            return Err(CommandError::InvalidWidgetName.into());
-        }
-        if !self.is_widget_description_valid {
-            return Err(CommandError::InvalidWidgetDescription.into());
-        }
         let aggregate_version = match self.command {
             WidgetCommand::CreateWidget(_) => 0,
             _ => self
