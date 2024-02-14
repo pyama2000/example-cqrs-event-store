@@ -1,3 +1,4 @@
+use crate::command::WidgetCommand;
 use crate::Id;
 
 /// 部品 (Widget) に発生するイベント
@@ -26,4 +27,29 @@ pub enum WidgetEvent {
         /// 部品の名前
         widget_description: String,
     },
+}
+
+impl From<WidgetCommand> for Vec<WidgetEvent> {
+    fn from(value: WidgetCommand) -> Self {
+        let id = Id::generate();
+        match value {
+            WidgetCommand::CreateWidget {
+                widget_name,
+                widget_description,
+            } => vec![WidgetEvent::WidgetCreated {
+                id,
+                widget_name,
+                widget_description,
+            }],
+            WidgetCommand::ChangeWidgetName { widget_name } => {
+                vec![WidgetEvent::WidgetNameChanged { id, widget_name }]
+            }
+            WidgetCommand::ChangeWidgetDescription { widget_description } => {
+                vec![WidgetEvent::WidgetDescriptionChanged {
+                    id,
+                    widget_description,
+                }]
+            }
+        }
+    }
 }

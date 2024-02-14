@@ -79,7 +79,10 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
     ) -> Result<String> {
         let aggregate = WidgetAggregate::default();
         let widget_id = aggregate.id().to_string();
-        let command = WidgetCommand::create_widget(widget_name, widget_description);
+        let command = WidgetCommand::CreateWidget {
+            widget_name,
+            widget_description,
+        };
         let command_state = aggregate
             .apply_command(command)
             .map_err(|e| self.handling_command_error(e))?;
@@ -99,7 +102,9 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
                 .get_widget_aggregate(widget_id.parse()?)
                 .await?
                 .ok_or(WidgetServiceError::AggregateNotFound)?;
-            let command = WidgetCommand::change_widget_name(widget_name.clone());
+            let command = WidgetCommand::ChangeWidgetName {
+                widget_name: widget_name.clone(),
+            };
             let command_state = aggregate
                 .apply_command(command)
                 .map_err(|e| self.handling_command_error(e))?;
@@ -129,7 +134,9 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
                 .get_widget_aggregate(widget_id.parse()?)
                 .await?
                 .ok_or(WidgetServiceError::AggregateNotFound)?;
-            let command = WidgetCommand::change_widget_description(widget_description.clone());
+            let command = WidgetCommand::ChangeWidgetDescription {
+                widget_description: widget_description.clone(),
+            };
             let command_state = aggregate
                 .apply_command(command)
                 .map_err(|e| self.handling_command_error(e))?;
