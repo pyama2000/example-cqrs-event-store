@@ -4,7 +4,6 @@ use kernel::aggregate::WidgetAggregate;
 use kernel::command::WidgetCommand;
 use kernel::error::{AggregateError, ApplyCommandError};
 use kernel::processor::CommandProcessor;
-use lib::{Error, Result};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -33,6 +32,12 @@ impl From<ApplyCommandError> for WidgetServiceError {
     }
 }
 
+impl From<lib::Error> for WidgetServiceError {
+    fn from(value: lib::Error) -> Self {
+        WidgetServiceError::Unknow(value)
+    }
+}
+
 /// 部品 (Widget) のユースケース処理のインターフェイス
 pub trait WidgetService {
     /// 部品を新しく作成する
@@ -40,19 +45,19 @@ pub trait WidgetService {
         &self,
         widget_name: String,
         widget_description: String,
-    ) -> impl Future<Output = Result<String>> + Send;
+    ) -> impl Future<Output = Result<String, WidgetServiceError>> + Send;
     /// 部品の名前を変更する
     fn change_widget_name(
         &self,
         widget_id: String,
         widget_name: String,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<(), WidgetServiceError>> + Send;
     /// 部品の説明を変更する
     fn change_widget_description(
         &self,
         widget_id: String,
         widget_description: String,
-    ) -> impl Future<Output = Result<()>> + Send;
+    ) -> impl Future<Output = Result<(), WidgetServiceError>> + Send;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -65,10 +70,10 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
         Self { command }
     }
 
-    fn handling_aggregate_error(&self, err: Error) -> Result<()> {
+    fn handling_aggregate_error(&self, err: lib::Error) -> Result<(), WidgetServiceError> {
         match err.downcast_ref::<AggregateError>() {
             Some(AggregateError::Conflict) => Ok(()),
-            _ => Err(err),
+            _ => Err(WidgetServiceError::Unknow(err)),
         }
     }
 }
@@ -78,7 +83,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         &self,
         widget_name: String,
         widget_description: String,
-    ) -> Result<String> {
+    ) -> Result<String, WidgetServiceError> {
         let aggregate = WidgetAggregate::default();
         let widget_id = aggregate.id().to_string();
         let command = WidgetCommand::CreateWidget {
@@ -92,12 +97,16 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         Ok(widget_id)
     }
 
-    async fn change_widget_name(&self, widget_id: String, widget_name: String) -> Result<()> {
+    async fn change_widget_name(
+        &self,
+        widget_id: String,
+        widget_name: String,
+    ) -> Result<(), WidgetServiceError> {
         const MAX_RETRY_COUNT: u32 = 3;
         let mut retry_count = 0;
         loop {
             if retry_count > MAX_RETRY_COUNT {
-                return Err(WidgetServiceError::AggregateConfilict.into());
+                return Err(WidgetServiceError::AggregateConfilict);
             }
             let aggregate = self
                 .command
@@ -124,12 +133,12 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         &self,
         widget_id: String,
         widget_description: String,
-    ) -> Result<()> {
+    ) -> Result<(), WidgetServiceError> {
         const MAX_RETRY_COUNT: u32 = 3;
         let mut retry_count = 0;
         loop {
             if retry_count > MAX_RETRY_COUNT {
-                return Err(WidgetServiceError::AggregateConfilict.into());
+                return Err(WidgetServiceError::AggregateConfilict);
             }
             let aggregate = self
                 .command
