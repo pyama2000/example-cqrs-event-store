@@ -4,6 +4,7 @@ use kernel::aggregate::WidgetAggregate;
 use kernel::command::WidgetCommand;
 use kernel::error::{AggregateError, ApplyCommandError};
 use kernel::processor::CommandProcessor;
+use lib::Error;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -18,7 +19,7 @@ pub enum WidgetServiceError {
     #[error("Invalid value")]
     InvalidValue,
     #[error("error")]
-    Unknow(#[from] lib::Error),
+    Unknow(#[from] Error),
 }
 
 impl From<ApplyCommandError> for WidgetServiceError {

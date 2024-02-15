@@ -1,3 +1,4 @@
+use lib::Error;
 use thiserror::Error;
 
 /// コマンドの実行に失敗したことを表す
@@ -32,5 +33,5 @@ pub enum AggregateError {
     NotFound,
     /// その他のエラー
     #[error(transparent)]
-    Unknow(#[from] lib::Error),
+    Unknow(#[from] Error),
 }

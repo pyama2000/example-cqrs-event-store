@@ -2,6 +2,7 @@ use kernel::aggregate::WidgetAggregate;
 use kernel::error::AggregateError;
 use kernel::event::WidgetEvent;
 use kernel::processor::CommandProcessor;
+use lib::Error;
 
 use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel, WidgetEventModels};
 use crate::persistence::ConnectionPool;
@@ -98,12 +99,12 @@ impl CommandProcessor for WidgetRepository {
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| AggregateError::Unknow(e.into()))?;
-        let mappers: Vec<Result<WidgetEventMapper, lib::Error>> =
+        let mappers: Vec<Result<WidgetEventMapper, Error>> =
             models.into_iter().map(|x| x.try_into()).collect();
         if mappers.iter().any(|x| x.is_err()) {
             return Err(AggregateError::Unknow("Parse mapper from model".into()));
         }
-        let events: Vec<Result<WidgetEvent, lib::Error>> =
+        let events: Vec<Result<WidgetEvent, Error>> =
             mappers.into_iter().map(|x| x.unwrap().try_into()).collect();
         if events.iter().any(|x| x.is_err()) {
             return Err(AggregateError::Unknow("Parse event from mapper".into()));
