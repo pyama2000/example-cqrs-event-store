@@ -66,12 +66,7 @@ impl WidgetEventModel {
     }
 }
 
-/// `WidgetEventModel` の配列を NewType パターンで表現する
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct WidgetEventModels(pub(crate) Vec<WidgetEventModel>);
-
-/// `WidgetAggregateModel` の last_events から `WidgetEventModel` の配列に変換する
-impl TryFrom<WidgetAggregateModel> for WidgetEventModels {
+impl TryFrom<WidgetAggregateModel> for Vec<WidgetEventModel> {
     type Error = Error;
 
     fn try_from(value: WidgetAggregateModel) -> Result<Self, Self::Error> {
@@ -85,7 +80,7 @@ impl TryFrom<WidgetAggregateModel> for WidgetEventModels {
             };
             models.push(model);
         }
-        Ok(Self(models))
+        Ok(models)
     }
 }
 

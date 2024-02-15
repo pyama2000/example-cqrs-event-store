@@ -4,7 +4,7 @@ use kernel::event::WidgetEvent;
 use kernel::processor::CommandProcessor;
 use lib::Error;
 
-use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel, WidgetEventModels};
+use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel};
 use crate::persistence::ConnectionPool;
 
 pub struct WidgetRepository {
@@ -64,7 +64,7 @@ impl CommandProcessor for WidgetRepository {
         // 前回集約が保存された際に作成されたイベントを Event テーブルに個々の項目として永続化する
         let widget_id = widget_id.to_string();
         let aggregate_version = model.aggregate_version();
-        let WidgetEventModels(models) = model.try_into()?;
+        let models: Vec<WidgetEventModel> = model.try_into()?;
         let mut tx = self
             .pool
             .begin()
