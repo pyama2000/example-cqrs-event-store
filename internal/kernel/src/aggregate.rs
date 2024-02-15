@@ -1,7 +1,5 @@
-use lib::Result;
-
 use crate::command::WidgetCommand;
-use crate::error::CommandError;
+use crate::error::{ApplyCommandError, LoadEventError};
 use crate::event::WidgetEvent;
 use crate::Id;
 
@@ -43,14 +41,21 @@ impl WidgetAggregate {
     }
 
     /// 集約にコマンドを実行する
-    pub fn apply_command(self, command: WidgetCommand) -> Result<WidgetCommandState> {
+    pub fn apply_command(
+        self,
+        command: WidgetCommand,
+    ) -> Result<WidgetCommandState, ApplyCommandError> {
         WidgetCommandExecutor::new(self, command)
             .validate()?
             .execute()
     }
 
     /// イベントを読み込んで状態を復元する
-    pub fn load_events(mut self, events: Vec<WidgetEvent>, version: u64) -> Result<Self> {
+    pub fn load_events(
+        mut self,
+        events: Vec<WidgetEvent>,
+        version: u64,
+    ) -> Result<Self, LoadEventError> {
         for event in events {
             match event {
                 WidgetEvent::WidgetCreated {
@@ -74,8 +79,7 @@ impl WidgetAggregate {
             }
         }
         if self.version != version {
-            // イベントから Aggregate を復元時のバージョンが合わないときのエラー
-            return Err("Not match aggregate version".into());
+            return Err(LoadEventError::NotMatchVersion);
         }
         Ok(self)
     }
@@ -127,14 +131,14 @@ impl WidgetCommandExecutor<()> {
     }
 
     /// Aggregate に対するコマンドが有効か確認する
-    fn validate(self) -> Result<WidgetCommandExecutor<Valid>> {
+    fn validate(self) -> Result<WidgetCommandExecutor<Valid>, ApplyCommandError> {
         self.validate_format()
     }
 }
 
 impl WidgetCommandExecutor<()> {
     /// イベントの部品の名前が有効か確認する
-    fn validate_format(self) -> Result<WidgetCommandExecutor<Valid>> {
+    fn validate_format(self) -> Result<WidgetCommandExecutor<Valid>, ApplyCommandError> {
         let events: Vec<WidgetEvent> = self.command.clone().into();
         for event in &events {
             let is_widget_name_format_valid = match event {
@@ -143,7 +147,7 @@ impl WidgetCommandExecutor<()> {
                 WidgetEvent::WidgetDescriptionChanged { .. } => true,
             };
             if !is_widget_name_format_valid {
-                return Err(CommandError::InvalidWidgetName.into());
+                return Err(ApplyCommandError::InvalidWidgetName);
             }
             let is_widget_description_format_valid = match event {
                 WidgetEvent::WidgetCreated {
@@ -155,7 +159,7 @@ impl WidgetCommandExecutor<()> {
                 WidgetEvent::WidgetNameChanged { .. } => true,
             };
             if !is_widget_description_format_valid {
-                return Err(CommandError::InvalidWidgetDescription.into());
+                return Err(ApplyCommandError::InvalidWidgetDescription);
             }
         }
         Ok(WidgetCommandExecutor {
@@ -168,14 +172,14 @@ impl WidgetCommandExecutor<()> {
 
 impl WidgetCommandExecutor<Valid> {
     /// コマンドの実行結果を返す
-    fn execute(self) -> Result<WidgetCommandState> {
+    fn execute(self) -> Result<WidgetCommandState, ApplyCommandError> {
         let aggregate_version = match self.command {
             WidgetCommand::CreateWidget { .. } => 0,
             _ => self
                 .aggregate
                 .version
                 .checked_add(1)
-                .ok_or("Cannot update Aggregate version")?,
+                .ok_or(ApplyCommandError::VersionOverflow)?,
         };
         let events = self.command.into();
         Ok(WidgetCommandState {
