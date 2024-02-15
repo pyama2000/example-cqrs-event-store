@@ -2,10 +2,10 @@ use adapter::persistence::connect;
 use adapter::repository::WidgetRepository;
 use app::WidgetServiceImpl;
 use driver::Server;
-use lib::{database_url, Result};
+use lib::{database_url, Error};
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Error> {
     let pool = connect(&database_url()).await?;
     let repository = WidgetRepository::new(pool);
     let service = WidgetServiceImpl::new(repository);
