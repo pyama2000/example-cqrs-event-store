@@ -87,9 +87,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             widget_name,
             widget_description,
         };
-        let command_state = aggregate
-            .apply_command(command)
-            .map_err(WidgetServiceError::from)?;
+        let command_state = aggregate.apply_command(command)?;
         self.command.create_widget_aggregate(command_state).await?;
         Ok(widget_id)
     }
@@ -109,16 +107,14 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             let command = WidgetCommand::ChangeWidgetName {
                 widget_name: widget_name.clone(),
             };
-            let command_state = aggregate
-                .apply_command(command)
-                .map_err(WidgetServiceError::from)?;
+            let command_state = aggregate.apply_command(command)?;
             match self.command.update_widget_aggregate(command_state).await {
                 Ok(_) => break,
                 Err(e) => match e {
                     AggregateError::Conflict if retry_count.le(&MAX_RETRY_COUNT) => {
                         retry_count += 1
                     }
-                    _ => return Err(WidgetServiceError::from(e)),
+                    _ => return Err(e.into()),
                 },
             }
         }
@@ -143,16 +139,14 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             let command = WidgetCommand::ChangeWidgetDescription {
                 widget_description: widget_description.clone(),
             };
-            let command_state = aggregate
-                .apply_command(command)
-                .map_err(WidgetServiceError::from)?;
+            let command_state = aggregate.apply_command(command)?;
             match self.command.update_widget_aggregate(command_state).await {
                 Ok(_) => break,
                 Err(e) => match e {
                     AggregateError::Conflict if retry_count.le(&MAX_RETRY_COUNT) => {
                         retry_count += 1
                     }
-                    _ => return Err(WidgetServiceError::from(e)),
+                    _ => return Err(e.into()),
                 },
             }
         }
