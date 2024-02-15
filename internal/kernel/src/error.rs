@@ -22,9 +22,12 @@ pub enum LoadEventError {
     NotMatchVersion,
 }
 
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Error, Debug)]
 pub enum AggregateError {
     /// Aggregate が既に更新さているときのエラー
     #[error("Aggregate is already updated")]
     Conflict,
+    /// その他のエラー
+    #[error(transparent)]
+    Unknow(#[from] lib::Error),
 }

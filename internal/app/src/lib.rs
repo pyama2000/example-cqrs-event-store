@@ -18,7 +18,7 @@ pub enum WidgetServiceError {
     #[error("Invalid value")]
     InvalidValue,
     #[error("error")]
-    Unknow(lib::Error),
+    Unknow(#[from] lib::Error),
 }
 
 impl From<ApplyCommandError> for WidgetServiceError {
@@ -32,9 +32,12 @@ impl From<ApplyCommandError> for WidgetServiceError {
     }
 }
 
-impl From<lib::Error> for WidgetServiceError {
-    fn from(value: lib::Error) -> Self {
-        WidgetServiceError::Unknow(value)
+impl From<AggregateError> for WidgetServiceError {
+    fn from(value: AggregateError) -> Self {
+        match value {
+            AggregateError::Conflict => Self::AggregateConfilict,
+            AggregateError::Unknow(e) => Self::Unknow(e),
+        }
     }
 }
 
@@ -69,13 +72,6 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
     pub fn new(command: C) -> Self {
         Self { command }
     }
-
-    fn handling_aggregate_error(&self, err: lib::Error) -> Result<(), WidgetServiceError> {
-        match err.downcast_ref::<AggregateError>() {
-            Some(AggregateError::Conflict) => Ok(()),
-            _ => Err(WidgetServiceError::Unknow(err)),
-        }
-    }
 }
 
 impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
@@ -105,9 +101,6 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         const MAX_RETRY_COUNT: u32 = 3;
         let mut retry_count = 0;
         loop {
-            if retry_count > MAX_RETRY_COUNT {
-                return Err(WidgetServiceError::AggregateConfilict);
-            }
             let aggregate = self
                 .command
                 .get_widget_aggregate(widget_id.parse()?)
@@ -119,12 +112,15 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             let command_state = aggregate
                 .apply_command(command)
                 .map_err(WidgetServiceError::from)?;
-            let result = self.command.update_widget_aggregate(command_state).await;
-            if result.is_ok() {
-                break;
+            match self.command.update_widget_aggregate(command_state).await {
+                Ok(_) => break,
+                Err(e) => match e {
+                    AggregateError::Conflict if retry_count.le(&MAX_RETRY_COUNT) => {
+                        retry_count += 1
+                    }
+                    _ => return Err(WidgetServiceError::from(e)),
+                },
             }
-            self.handling_aggregate_error(result.err().unwrap())?;
-            retry_count += 1;
         }
         Ok(())
     }
@@ -151,12 +147,15 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             let command_state = aggregate
                 .apply_command(command)
                 .map_err(WidgetServiceError::from)?;
-            let result = self.command.update_widget_aggregate(command_state).await;
-            if result.is_ok() {
-                break;
+            match self.command.update_widget_aggregate(command_state).await {
+                Ok(_) => break,
+                Err(e) => match e {
+                    AggregateError::Conflict if retry_count.le(&MAX_RETRY_COUNT) => {
+                        retry_count += 1
+                    }
+                    _ => return Err(WidgetServiceError::from(e)),
+                },
             }
-            self.handling_aggregate_error(result.err().unwrap())?;
-            retry_count += 1;
         }
         Ok(())
     }
