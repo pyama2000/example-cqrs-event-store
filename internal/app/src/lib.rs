@@ -36,6 +36,7 @@ impl From<AggregateError> for WidgetServiceError {
     fn from(value: AggregateError) -> Self {
         match value {
             AggregateError::Conflict => Self::AggregateConfilict,
+            AggregateError::NotFound => Self::AggregateNotFound,
             AggregateError::Unknow(e) => Self::Unknow(e),
         }
     }
@@ -104,8 +105,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             let aggregate = self
                 .command
                 .get_widget_aggregate(widget_id.parse()?)
-                .await?
-                .ok_or(WidgetServiceError::AggregateNotFound)?;
+                .await?;
             let command = WidgetCommand::ChangeWidgetName {
                 widget_name: widget_name.clone(),
             };
@@ -139,8 +139,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             let aggregate = self
                 .command
                 .get_widget_aggregate(widget_id.parse()?)
-                .await?
-                .ok_or(WidgetServiceError::AggregateNotFound)?;
+                .await?;
             let command = WidgetCommand::ChangeWidgetDescription {
                 widget_description: widget_description.clone(),
             };

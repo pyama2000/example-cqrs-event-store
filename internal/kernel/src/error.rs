@@ -27,6 +27,9 @@ pub enum AggregateError {
     /// Aggregate が既に更新さているときのエラー
     #[error("Aggregate is already updated")]
     Conflict,
+    /// Aggregate が存在しないときのエラー
+    #[error("Aggregate not found")]
+    NotFound,
     /// その他のエラー
     #[error(transparent)]
     Unknow(#[from] lib::Error),

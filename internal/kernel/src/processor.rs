@@ -13,7 +13,7 @@ pub trait CommandProcessor {
     fn get_widget_aggregate(
         &self,
         widget_id: Id<WidgetAggregate>,
-    ) -> impl std::future::Future<Output = Result<Option<WidgetAggregate>, AggregateError>> + Send;
+    ) -> impl std::future::Future<Output = Result<WidgetAggregate, AggregateError>> + Send;
     /// 部品の集約を更新する
     fn update_widget_aggregate(
         &self,

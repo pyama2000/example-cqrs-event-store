@@ -45,7 +45,7 @@ impl CommandProcessor for WidgetRepository {
     async fn get_widget_aggregate(
         &self,
         widget_id: kernel::Id<kernel::aggregate::WidgetAggregate>,
-    ) -> Result<Option<kernel::aggregate::WidgetAggregate>, AggregateError> {
+    ) -> Result<kernel::aggregate::WidgetAggregate, AggregateError> {
         // Aggregate テーブルから関連する集約項目を取得する
         let model: WidgetAggregateModel =
             match sqlx::query_as("SELECT * FROM aggregate WHERE widget_id = ?")
@@ -55,7 +55,7 @@ impl CommandProcessor for WidgetRepository {
             {
                 Ok(x) => x,
                 Err(e) => match e {
-                    sqlx::Error::RowNotFound => return Ok(None),
+                    sqlx::Error::RowNotFound => return Err(AggregateError::NotFound),
                     _ => return Err(AggregateError::Unknow(e.into())),
                 },
             };
@@ -109,11 +109,9 @@ impl CommandProcessor for WidgetRepository {
             return Err(AggregateError::Unknow("Parse event from mapper".into()));
         }
         let events: Vec<_> = events.into_iter().map(|x| x.unwrap()).collect();
-        Ok(Some(
-            WidgetAggregate::new(widget_id.parse()?)
-                .load_events(events, aggregate_version)
-                .map_err(|e| AggregateError::Unknow(e.into()))?,
-        ))
+        WidgetAggregate::new(widget_id.parse()?)
+            .load_events(events, aggregate_version)
+            .map_err(|e| AggregateError::Unknow(e.into()))
     }
 
     async fn update_widget_aggregate(
