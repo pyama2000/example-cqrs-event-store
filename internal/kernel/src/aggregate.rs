@@ -1,7 +1,5 @@
-use lib::Result;
-
 use crate::command::WidgetCommand;
-use crate::error::CommandError;
+use crate::error::{ApplyCommandError, LoadEventError};
 use crate::event::WidgetEvent;
 use crate::Id;
 
@@ -15,6 +13,13 @@ pub struct WidgetAggregate {
 }
 
 impl WidgetAggregate {
+    pub fn new(id: Id<WidgetAggregate>) -> Self {
+        Self {
+            id,
+            ..Default::default()
+        }
+    }
+
     /// 部品の id
     pub fn id(&self) -> &Id<WidgetAggregate> {
         &self.id
@@ -36,10 +41,47 @@ impl WidgetAggregate {
     }
 
     /// 集約にコマンドを実行する
-    pub fn apply_command(self, command: WidgetCommand) -> Result<WidgetCommandState> {
+    pub fn apply_command(
+        self,
+        command: WidgetCommand,
+    ) -> Result<WidgetCommandState, ApplyCommandError> {
         WidgetCommandExecutor::new(self, command)
-            .validate()
+            .validate()?
             .execute()
+    }
+
+    /// イベントを読み込んで状態を復元する
+    pub fn load_events(
+        mut self,
+        events: Vec<WidgetEvent>,
+        version: u64,
+    ) -> Result<Self, LoadEventError> {
+        for event in events {
+            match event {
+                WidgetEvent::WidgetCreated {
+                    widget_name,
+                    widget_description,
+                    ..
+                } => {
+                    self.name = widget_name;
+                    self.description = widget_description;
+                }
+                WidgetEvent::WidgetNameChanged { widget_name, .. } => {
+                    self.name = widget_name;
+                    self.version += 1;
+                }
+                WidgetEvent::WidgetDescriptionChanged {
+                    widget_description, ..
+                } => {
+                    self.description = widget_description;
+                    self.version += 1;
+                }
+            }
+        }
+        if self.version != version {
+            return Err(LoadEventError::NotMatchVersion);
+        }
+        Ok(self)
     }
 }
 
@@ -68,191 +110,82 @@ impl WidgetCommandState {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+struct Valid;
+
 /// 集約 (Aggregate) に対する `WidgetCommand` が有効か確認して `WidgetCommandState` を作成するビルダー
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct WidgetCommandExecutor<IsEventsValid, IsNameValid, IsDescriptionValid> {
+struct WidgetCommandExecutor<FormatValid> {
     aggregate: WidgetAggregate,
     command: WidgetCommand,
-    is_events_valid: IsEventsValid,
-    is_widget_name_valid: IsNameValid,
-    is_widget_description_valid: IsDescriptionValid,
+    format_valid: FormatValid,
 }
 
-impl WidgetCommandExecutor<(), (), ()> {
+impl WidgetCommandExecutor<()> {
     fn new(aggregate: WidgetAggregate, command: WidgetCommand) -> Self {
         Self {
             aggregate,
             command,
-            is_events_valid: (),
-            is_widget_name_valid: (),
-            is_widget_description_valid: (),
+            format_valid: (),
         }
     }
 
     /// Aggregate に対するコマンドが有効か確認する
-    fn validate(self) -> WidgetCommandExecutor<bool, bool, bool> {
-        self.validate_events()
-            .validate_widget_name()
-            .validate_widget_description()
+    fn validate(self) -> Result<WidgetCommandExecutor<Valid>, ApplyCommandError> {
+        self.validate_format()
     }
 }
 
-impl WidgetCommandExecutor<(), (), ()> {
-    /// コマンドに含まれるイベントが有効か確認する
-    fn validate_events(self) -> WidgetCommandExecutor<bool, (), ()> {
-        let is_events_valid = match &self.command {
-            WidgetCommand::CreateWidget(event) => {
-                matches!(event, WidgetEvent::WidgetCreated { .. })
-            }
-            WidgetCommand::ChangeWidgetName(event) => {
-                matches!(event, WidgetEvent::WidgetNameChanged { .. })
-            }
-            WidgetCommand::ChangeWidgetDescription(event) => {
-                matches!(event, WidgetEvent::WidgetDescriptionChanged { .. })
-            }
-        };
-        WidgetCommandExecutor {
-            aggregate: self.aggregate,
-            command: self.command,
-            is_events_valid,
-            is_widget_name_valid: self.is_widget_name_valid,
-            is_widget_description_valid: self.is_widget_description_valid,
-        }
-    }
-}
-
-impl<IsNameValid, IsDescriptionValid> WidgetCommandExecutor<bool, IsNameValid, IsDescriptionValid> {
+impl WidgetCommandExecutor<()> {
     /// イベントの部品の名前が有効か確認する
-    fn validate_widget_name(self) -> WidgetCommandExecutor<bool, bool, IsDescriptionValid> {
-        let is_widget_name_valid = match &self.command {
-            WidgetCommand::CreateWidget(event) | WidgetCommand::ChangeWidgetName(event) => {
-                match event {
-                    WidgetEvent::WidgetCreated { widget_name, .. }
-                    | WidgetEvent::WidgetNameChanged { widget_name, .. } => !widget_name.is_empty(),
-                    WidgetEvent::WidgetDescriptionChanged { .. } => true,
-                }
+    fn validate_format(self) -> Result<WidgetCommandExecutor<Valid>, ApplyCommandError> {
+        let events: Vec<WidgetEvent> = self.command.clone().into();
+        for event in &events {
+            let is_widget_name_format_valid = match event {
+                WidgetEvent::WidgetCreated { widget_name, .. }
+                | WidgetEvent::WidgetNameChanged { widget_name, .. } => !widget_name.is_empty(),
+                WidgetEvent::WidgetDescriptionChanged { .. } => true,
+            };
+            if !is_widget_name_format_valid {
+                return Err(ApplyCommandError::InvalidWidgetName);
             }
-            WidgetCommand::ChangeWidgetDescription(_) => true,
-        };
-        WidgetCommandExecutor {
+            let is_widget_description_format_valid = match event {
+                WidgetEvent::WidgetCreated {
+                    widget_description, ..
+                }
+                | WidgetEvent::WidgetDescriptionChanged {
+                    widget_description, ..
+                } => !widget_description.is_empty(),
+                WidgetEvent::WidgetNameChanged { .. } => true,
+            };
+            if !is_widget_description_format_valid {
+                return Err(ApplyCommandError::InvalidWidgetDescription);
+            }
+        }
+        Ok(WidgetCommandExecutor {
             aggregate: self.aggregate,
             command: self.command,
-            is_events_valid: self.is_events_valid,
-            is_widget_name_valid,
-            is_widget_description_valid: self.is_widget_description_valid,
-        }
-    }
-
-    /// イベントの部品の説明が有効か確認する
-    fn validate_widget_description(self) -> WidgetCommandExecutor<bool, IsNameValid, bool> {
-        let is_widget_description_valid = match &self.command {
-            WidgetCommand::CreateWidget(event) | WidgetCommand::ChangeWidgetDescription(event) => {
-                match event {
-                    WidgetEvent::WidgetCreated {
-                        widget_description, ..
-                    }
-                    | WidgetEvent::WidgetDescriptionChanged {
-                        widget_description, ..
-                    } => !widget_description.is_empty(),
-                    WidgetEvent::WidgetNameChanged { .. } => true,
-                }
-            }
-            WidgetCommand::ChangeWidgetName(_) => true,
-        };
-        WidgetCommandExecutor {
-            aggregate: self.aggregate,
-            command: self.command,
-            is_events_valid: self.is_events_valid,
-            is_widget_name_valid: self.is_widget_name_valid,
-            is_widget_description_valid,
-        }
+            format_valid: Valid,
+        })
     }
 }
 
-impl WidgetCommandExecutor<bool, bool, bool> {
+impl WidgetCommandExecutor<Valid> {
     /// コマンドの実行結果を返す
-    fn execute(self) -> Result<WidgetCommandState> {
-        if !self.is_events_valid {
-            // コマンドに不正なイベントが含まれるときのエラー
-            return Err("Invalid event found".into());
-        }
-        if !self.is_widget_name_valid {
-            return Err(CommandError::InvalidWidgetName.into());
-        }
-        if !self.is_widget_description_valid {
-            return Err(CommandError::InvalidWidgetDescription.into());
-        }
+    fn execute(self) -> Result<WidgetCommandState, ApplyCommandError> {
         let aggregate_version = match self.command {
-            WidgetCommand::CreateWidget(_) => 0,
+            WidgetCommand::CreateWidget { .. } => 0,
             _ => self
                 .aggregate
                 .version
                 .checked_add(1)
-                .ok_or("Cannot update Aggregate version")?,
+                .ok_or(ApplyCommandError::VersionOverflow)?,
         };
-        let events = match self.command {
-            WidgetCommand::CreateWidget(event)
-            | WidgetCommand::ChangeWidgetName(event)
-            | WidgetCommand::ChangeWidgetDescription(event) => vec![event],
-        };
+        let events = self.command.into();
         Ok(WidgetCommandState {
             widget_id: self.aggregate.id,
             events,
             aggregate_version,
         })
-    }
-}
-
-pub struct WidgetAggregateState {
-    aggregate: WidgetAggregate,
-    events: Vec<WidgetEvent>,
-    widget_id: Id<WidgetAggregate>,
-    aggregate_version: u64,
-}
-
-impl WidgetAggregateState {
-    pub fn new(
-        aggregate: WidgetAggregate,
-        events: Vec<WidgetEvent>,
-        widget_id: Id<WidgetAggregate>,
-        aggregate_version: u64,
-    ) -> Self {
-        Self {
-            aggregate,
-            events,
-            widget_id,
-            aggregate_version,
-        }
-    }
-
-    pub fn restore(mut self) -> Result<WidgetAggregate> {
-        self.aggregate.id = self.widget_id;
-        for event in &self.events {
-            match event {
-                WidgetEvent::WidgetCreated {
-                    widget_name,
-                    widget_description,
-                    ..
-                } => {
-                    self.aggregate.name = widget_name.to_string();
-                    self.aggregate.description = widget_description.to_string();
-                }
-                WidgetEvent::WidgetNameChanged { widget_name, .. } => {
-                    self.aggregate.name = widget_name.to_string();
-                    self.aggregate.version += 1;
-                }
-                WidgetEvent::WidgetDescriptionChanged {
-                    widget_description, ..
-                } => {
-                    self.aggregate.description = widget_description.to_string();
-                    self.aggregate.version += 1;
-                }
-            }
-        }
-        if self.aggregate.version != self.aggregate_version {
-            // イベントから Aggregate を復元時のバージョンが合わないときのエラー
-            return Err("Not match aggregate version".into());
-        }
-        Ok(self.aggregate)
     }
 }
