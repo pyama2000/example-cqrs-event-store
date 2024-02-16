@@ -189,3 +189,200 @@ impl WidgetCommandExecutor<Valid> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::aggregate::{WidgetAggregate, WidgetCommandState};
+    use crate::command::WidgetCommand;
+    use crate::error::ApplyCommandError;
+    use crate::event::WidgetEvent;
+    use crate::Id;
+
+    const WIDGET_NAME: &str = "部品名";
+    const WIDGET_DESCRIPTION: &str = "部品説明";
+
+    #[test]
+    /// 集約へのコマンド実行のテスト
+    fn test_apply_command() {
+        struct TestCase {
+            name: &'static str,
+            aggregate: WidgetAggregate,
+            arg: WidgetCommand,
+            assert: fn(name: &'static str, result: Result<WidgetCommandState, ApplyCommandError>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成コマンドを実行した場合、イベントが部品作成イベントのみ、かつバージョンが0の CommandState が返る",
+                aggregate: WidgetAggregate::default(),
+                arg: WidgetCommand::CreateWidget {
+                    widget_name: WIDGET_NAME.to_string(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name, result| {
+                    assert!(result.is_ok(), "{name}");
+                    let state = result.unwrap();
+                    assert_eq!(state.events.len(), 1);
+                    assert!(
+                        matches!(state.events[0], WidgetEvent::WidgetCreated { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(state.aggregate_version, 0);
+                },
+            },
+            TestCase {
+                name: "バージョンが1の集約に部品名変更コマンドを実行した場合、イベントが部品名変更イベントのみ、かつバージョンが2の CommandState が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: 1,
+                },
+                arg: WidgetCommand::ChangeWidgetName {
+                    widget_name: "変更後の部品名".to_string()
+                },
+                assert: |name, result| {
+                    assert!(result.is_ok(), "{name}");
+                    let state = result.unwrap();
+                    assert_eq!(state.events.len(), 1, "{name}");
+                    assert!(
+                        matches!(
+                            &state.events[0],
+                            WidgetEvent::WidgetNameChanged {
+                                widget_name, ..
+                            } if widget_name == "変更後の部品名",
+                        ),
+                        "{name}"
+                    );
+                    assert_eq!(state.aggregate_version, 2);
+                },
+            },
+            TestCase {
+                name: "バージョンが1の集約に部品の説明変更コマンドを実行した場合、イベントが部品の説明変更イベントのみ、かつバージョンが2の CommandState が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: 1,
+                },
+                arg: WidgetCommand::ChangeWidgetDescription {
+                    widget_description: "変更後の部品の説明".to_string(),
+                },
+                assert: |name, result| {
+                    assert!(result.is_ok(), "{name}");
+                    let state = result.unwrap();
+                    assert_eq!(state.events.len(), 1, "{name}");
+                    assert!(
+                        matches!(
+                            &state.events[0],
+                            WidgetEvent::WidgetDescriptionChanged {
+                                widget_description, ..
+                            } if widget_description == "変更後の部品の説明",
+                        ),
+                        "{name}"
+                    );
+                    assert_eq!(state.aggregate_version, 2);
+                },
+            },
+            TestCase {
+                name: "部品作成コマンド実行時に部品名が空文字の場合、ApplyCommandError::InvalideWidetName が返る",
+                aggregate: WidgetAggregate::default(),
+                arg: WidgetCommand::CreateWidget {
+                    widget_name: "".to_string(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::InvalidWidgetName)),
+                        "{name}",
+                    );
+                },
+            },
+            TestCase {
+                name: "部品作成コマンド実行時に部品の説明が空文字の場合、ApplyCommandError::InvalideWidetName が返る",
+                aggregate: WidgetAggregate::default(),
+                arg: WidgetCommand::CreateWidget {
+                    widget_name: WIDGET_NAME.to_string(),
+                    widget_description: "".to_string(),
+                },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::InvalidWidgetDescription)),
+                        "{name}",
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更コマンド実行時に部品名が空文字の場合、ApplyCommandError::InvalideWidetName が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: 1,
+                },
+                arg: WidgetCommand::ChangeWidgetName { widget_name: "".to_string() },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::InvalidWidgetName)),
+                        "{name}",
+                    );
+                },
+            },
+            TestCase {
+                name: "部品の説明変更コマンド実行時に部品の説明が空文字の場合、ApplyCommandError::InvalideWidetName が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: 1,
+                },
+                arg: WidgetCommand::ChangeWidgetDescription { widget_description: "".to_string() },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::InvalidWidgetDescription)),
+                        "{name}",
+                    );
+                },
+            },
+            TestCase {
+                name: "バージョンが最大値の集約に部品名変更コマンドを実行した場合、ApplyCommandError::VersionOverflow が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: u64::MAX,
+                },
+                arg: WidgetCommand::ChangeWidgetName {
+                    widget_name: WIDGET_NAME.to_string(),
+                },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::VersionOverflow)),
+                        "{name}",
+                    );
+                },
+            },
+            TestCase {
+                name: "バージョンが最大値の集約に部品の説明変更コマンドを実行時した場合、ApplyCommandError::VersionOverflow が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: u64::MAX,
+                },
+                arg: WidgetCommand::ChangeWidgetDescription {
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::VersionOverflow)),
+                        "{name}",
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            let result = test.aggregate.apply_command(test.arg);
+            (test.assert)(test.name, result);
+        }
+    }
+}
