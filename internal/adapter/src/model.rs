@@ -227,3 +227,26 @@ pub(crate) enum WidgetNameChangedPayload {
 pub(crate) enum WidgetDescriptionChangedPayload {
     V1 { widget_description: String },
 }
+
+#[cfg(test)]
+mod tests {
+    use kernel::aggregate::WidgetAggregate;
+
+    use super::WidgetAggregateModel;
+
+    const WIDGET_NAME: &str = "部品名";
+    const WIDGET_DESCRIPTION: &str = "部品説明";
+
+    /// CommandState から Aggregate テーブルのモデルに変換するテスト
+    #[test]
+    fn test_convert_command_state_to_aggregate_table_model() {
+        let command_state = WidgetAggregate::default()
+            .apply_command(kernel::command::WidgetCommand::CreateWidget {
+                widget_name: WIDGET_NAME.to_string(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            })
+            .unwrap();
+        let model: Result<WidgetAggregateModel, _> = command_state.try_into();
+        assert!(model.is_ok());
+    }
+}
