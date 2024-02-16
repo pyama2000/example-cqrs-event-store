@@ -11,6 +11,9 @@ pub enum ApplyCommandError {
     #[error("Invalid description for the widget")]
     InvalidWidgetDescription,
     /// イベントに含まれる部品の説明が不正なフォーマットのときのエラー
+    #[error("Aggregation already created")]
+    AggregationAlreadyCreated,
+    /// イベントに含まれる部品の説明が不正なフォーマットのときのエラー
     #[error("Cannot update Aggregate version")]
     VersionOverflow,
 }

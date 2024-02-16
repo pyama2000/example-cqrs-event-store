@@ -115,30 +115,52 @@ struct Valid;
 
 /// 集約 (Aggregate) に対する `WidgetCommand` が有効か確認して `WidgetCommandState` を作成するビルダー
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-struct WidgetCommandExecutor<FormatValid> {
+struct WidgetCommandExecutor<ValidCreation, FormatValid> {
     aggregate: WidgetAggregate,
     command: WidgetCommand,
+    valid_creation: ValidCreation,
     format_valid: FormatValid,
 }
 
-impl WidgetCommandExecutor<()> {
+impl WidgetCommandExecutor<(), ()> {
     fn new(aggregate: WidgetAggregate, command: WidgetCommand) -> Self {
         Self {
             aggregate,
             command,
+            valid_creation: (),
             format_valid: (),
         }
     }
 
     /// Aggregate に対するコマンドが有効か確認する
-    fn validate(self) -> Result<WidgetCommandExecutor<Valid>, ApplyCommandError> {
-        self.validate_format()
+    fn validate(self) -> Result<WidgetCommandExecutor<Valid, Valid>, ApplyCommandError> {
+        self.validate_unique_aggregation_creation()?
+            .validate_format()
     }
 }
 
-impl WidgetCommandExecutor<()> {
+impl WidgetCommandExecutor<(), ()> {
+    /// 作成済みの Aggregate に対して再度作成するコマンドが実行できないことを確認する
+    fn validate_unique_aggregation_creation(
+        self,
+    ) -> Result<WidgetCommandExecutor<Valid, ()>, ApplyCommandError> {
+        if matches!(self.command, WidgetCommand::CreateWidget { .. })
+            && self.aggregate.version() != 0
+        {
+            return Err(ApplyCommandError::AggregationAlreadyCreated);
+        }
+        Ok(WidgetCommandExecutor {
+            aggregate: self.aggregate,
+            command: self.command,
+            valid_creation: Valid,
+            format_valid: self.format_valid,
+        })
+    }
+}
+
+impl WidgetCommandExecutor<Valid, ()> {
     /// イベントの部品の名前が有効か確認する
-    fn validate_format(self) -> Result<WidgetCommandExecutor<Valid>, ApplyCommandError> {
+    fn validate_format(self) -> Result<WidgetCommandExecutor<Valid, Valid>, ApplyCommandError> {
         let events: Vec<WidgetEvent> = self.command.clone().into();
         for event in &events {
             let is_widget_name_format_valid = match event {
@@ -165,12 +187,13 @@ impl WidgetCommandExecutor<()> {
         Ok(WidgetCommandExecutor {
             aggregate: self.aggregate,
             command: self.command,
+            valid_creation: self.valid_creation,
             format_valid: Valid,
         })
     }
 }
 
-impl WidgetCommandExecutor<Valid> {
+impl WidgetCommandExecutor<Valid, Valid> {
     /// コマンドの実行結果を返す
     fn execute(self) -> Result<WidgetCommandState, ApplyCommandError> {
         let aggregate_version = match self.command {
@@ -281,6 +304,25 @@ mod tests {
                         "{name}"
                     );
                     assert_eq!(state.aggregate_version, 2);
+                },
+            },
+            TestCase {
+                name: "すでに集約が作られている状態で部品作成コマンドを実行した場合、ApplyCommandError::AggregateAlreadyCreated が返る",
+                aggregate: WidgetAggregate {
+                    id: Id::generate(),
+                    name: WIDGET_NAME.to_string(),
+                    description: WIDGET_DESCRIPTION.to_string(),
+                    version: 1,
+                },
+                arg: WidgetCommand::CreateWidget {
+                    widget_name: WIDGET_NAME.to_string(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name, result| {
+                    assert!(
+                        matches!(result, Err(ApplyCommandError::AggregationAlreadyCreated)),
+                        "{name}",
+                    );
                 },
             },
             TestCase {
