@@ -230,12 +230,22 @@ pub(crate) enum WidgetDescriptionChangedPayload {
 
 #[cfg(test)]
 mod tests {
-    use kernel::aggregate::WidgetAggregate;
+    use std::str::FromStr;
 
-    use super::WidgetAggregateModel;
+    use kernel::aggregate::WidgetAggregate;
+    use lib::Error;
+    use ulid::Ulid;
+
+    use crate::model::{
+        WidgetCreatedPayload, WidgetDescriptionChangedPayload, WidgetEventMapper,
+        WidgetNameChangedPayload,
+    };
+
+    use super::{WidgetAggregateModel, WidgetEventModel};
 
     const WIDGET_NAME: &str = "部品名";
     const WIDGET_DESCRIPTION: &str = "部品説明";
+    const EVENT_ID: &str = "01HPS5PP8444SAZ4XPCB407D0R";
 
     /// CommandState から Aggregate テーブルのモデルに変換するテスト
     #[test]
@@ -248,5 +258,124 @@ mod tests {
             .unwrap();
         let model: Result<WidgetAggregateModel, _> = command_state.try_into();
         assert!(model.is_ok());
+    }
+
+    /// Aggregate テーブルのモデルから複数の Event テーブルのモデルに変換するテスト
+    #[test]
+    fn test_convert_aggregate_table_model_to_event_table_model() {
+        struct TestCase {
+            name: &'static str,
+            aggregate_model: WidgetAggregateModel,
+            assert: fn(name: &str, result: Result<Vec<WidgetEventModel>, Error>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成コマンドを実行した集約のAggregate テーブルのモデルから変換する",
+                aggregate_model: WidgetAggregateModel {
+                    widget_id: String::new(),
+                    last_events: serde_json::to_value(vec![WidgetEventMapper::WidgetCreated {
+                        event_id: EVENT_ID.to_string(),
+                        payload: WidgetCreatedPayload::V1 {
+                            widget_name: WIDGET_NAME.to_string(),
+                            widget_description: WIDGET_DESCRIPTION.to_string(),
+                        },
+                    }])
+                    .unwrap(),
+                    aggregate_version: 0,
+                },
+                assert: |name: _, result: Result<_, _>| {
+                    assert!(result.is_ok(), "{name}");
+                    let models = result.unwrap();
+                    assert_eq!(models.len(), 1, "{name}");
+                    let WidgetEventModel {
+                        event_id,
+                        event_name,
+                        payload,
+                    } = models.first().unwrap();
+                    assert!(Ulid::from_str(event_id).is_ok(), "{name}");
+                    assert_eq!(event_name, "WidgetCreated", "{name}");
+                    assert_eq!(
+                        payload,
+                        &serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                            "widget_description": WIDGET_DESCRIPTION
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更コマンドを実行した集約のAggregate テーブルのモデルから変換する",
+                aggregate_model: WidgetAggregateModel {
+                    widget_id: String::new(),
+                    last_events: serde_json::to_value(vec![WidgetEventMapper::WidgetNameChanged {
+                        event_id: EVENT_ID.to_string(),
+                        payload: WidgetNameChangedPayload::V1 {
+                            widget_name: WIDGET_NAME.to_string(),
+                        },
+                    }])
+                    .unwrap(),
+                    aggregate_version: 1,
+                },
+                assert: |name: _, result: Result<_, _>| {
+                    assert!(result.is_ok(), "{name}");
+                    let models = result.unwrap();
+                    assert_eq!(models.len(), 1, "{name}");
+                    let WidgetEventModel {
+                        event_id,
+                        event_name,
+                        payload,
+                    } = models.first().unwrap();
+                    assert!(Ulid::from_str(event_id).is_ok(), "{name}");
+                    assert_eq!(event_name, "WidgetNameChanged", "{name}");
+                    assert_eq!(
+                        payload,
+                        &serde_json::json!({"version": "V1", "widget_name": WIDGET_NAME}),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name:
+                    "部品の説明変更コマンドを実行した集約のAggregate テーブルのモデルから変換する",
+                aggregate_model: WidgetAggregateModel {
+                    widget_id: String::new(),
+                    last_events: serde_json::to_value(vec![
+                        WidgetEventMapper::WidgetDescriptionChanged {
+                            event_id: EVENT_ID.to_string(),
+                            payload: WidgetDescriptionChangedPayload::V1 {
+                                widget_description: WIDGET_DESCRIPTION.to_string(),
+                            },
+                        },
+                    ])
+                    .unwrap(),
+                    aggregate_version: 1,
+                },
+                assert: |name: _, result: Result<_, _>| {
+                    assert!(result.is_ok(), "{name}");
+                    let models = result.unwrap();
+                    assert_eq!(models.len(), 1, "{name}");
+                    let WidgetEventModel {
+                        event_id,
+                        event_name,
+                        payload,
+                    } = models.first().unwrap();
+                    assert!(Ulid::from_str(event_id).is_ok(), "{name}");
+                    assert_eq!(event_name, "WidgetDescriptionChanged", "{name}");
+                    assert_eq!(
+                        payload,
+                        &serde_json::json!({
+                            "version": "V1",
+                            "widget_description": WIDGET_DESCRIPTION
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, test.aggregate_model.try_into())
+        }
     }
 }

@@ -12,6 +12,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "strum_macros",
+ "ulid",
 ]
 
 [[package]]
