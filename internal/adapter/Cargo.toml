@@ -14,4 +14,7 @@ sqlx = { version = "0.7.3", features = ["runtime-tokio", "mysql", "json"] }
 strum_macros = "0.26.1"
 
 [dev-dependencies]
+testcontainers = "0.15.0"
+testcontainers-modules = { version = "0.3.2", features = ["mysql"] }
+tokio = { version = "1.36.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 ulid = "1.1.2"
