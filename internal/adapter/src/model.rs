@@ -227,3 +227,527 @@ pub(crate) enum WidgetNameChangedPayload {
 pub(crate) enum WidgetDescriptionChangedPayload {
     V1 { widget_description: String },
 }
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use kernel::aggregate::WidgetAggregate;
+    use kernel::event::WidgetEvent;
+    use lib::Error;
+    use ulid::Ulid;
+
+    use crate::model::{
+        WidgetCreatedPayload, WidgetDescriptionChangedPayload, WidgetEventMapper,
+        WidgetNameChangedPayload,
+    };
+
+    use super::{WidgetAggregateModel, WidgetEventModel};
+
+    const WIDGET_NAME: &str = "部品名";
+    const WIDGET_DESCRIPTION: &str = "部品説明";
+    const EVENT_ID: &str = "01HPS5PP8444SAZ4XPCB407D0R";
+
+    /// CommandState から Aggregate テーブルのモデルに変換するテスト
+    #[test]
+    fn test_convert_command_state_to_aggregate_table_model() {
+        let command_state = WidgetAggregate::default()
+            .apply_command(kernel::command::WidgetCommand::CreateWidget {
+                widget_name: WIDGET_NAME.to_string(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            })
+            .unwrap();
+        let model: Result<WidgetAggregateModel, _> = command_state.try_into();
+        assert!(model.is_ok());
+    }
+
+    /// Aggregate テーブルのモデルから複数の Event テーブルのモデルに変換するテスト
+    #[test]
+    fn test_convert_aggregate_table_model_to_event_table_model() {
+        struct TestCase {
+            name: &'static str,
+            aggregate_model: WidgetAggregateModel,
+            assert: fn(name: &str, result: Result<Vec<WidgetEventModel>, Error>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成コマンドを実行した集約のAggregate テーブルのモデルから変換する",
+                aggregate_model: WidgetAggregateModel {
+                    widget_id: String::new(),
+                    last_events: serde_json::to_value(vec![WidgetEventMapper::WidgetCreated {
+                        event_id: EVENT_ID.to_string(),
+                        payload: WidgetCreatedPayload::V1 {
+                            widget_name: WIDGET_NAME.to_string(),
+                            widget_description: WIDGET_DESCRIPTION.to_string(),
+                        },
+                    }])
+                    .unwrap(),
+                    aggregate_version: 0,
+                },
+                assert: |name: _, result: Result<_, _>| {
+                    assert!(result.is_ok(), "{name}");
+                    let models = result.unwrap();
+                    assert_eq!(models.len(), 1, "{name}");
+                    let WidgetEventModel {
+                        event_id,
+                        event_name,
+                        payload,
+                    } = models.first().unwrap();
+                    assert!(Ulid::from_str(event_id).is_ok(), "{name}");
+                    assert_eq!(event_name, "WidgetCreated", "{name}");
+                    assert_eq!(
+                        payload,
+                        &serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                            "widget_description": WIDGET_DESCRIPTION
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更コマンドを実行した集約のAggregate テーブルのモデルから変換する",
+                aggregate_model: WidgetAggregateModel {
+                    widget_id: String::new(),
+                    last_events: serde_json::to_value(vec![WidgetEventMapper::WidgetNameChanged {
+                        event_id: EVENT_ID.to_string(),
+                        payload: WidgetNameChangedPayload::V1 {
+                            widget_name: WIDGET_NAME.to_string(),
+                        },
+                    }])
+                    .unwrap(),
+                    aggregate_version: 1,
+                },
+                assert: |name: _, result: Result<_, _>| {
+                    assert!(result.is_ok(), "{name}");
+                    let models = result.unwrap();
+                    assert_eq!(models.len(), 1, "{name}");
+                    let WidgetEventModel {
+                        event_id,
+                        event_name,
+                        payload,
+                    } = models.first().unwrap();
+                    assert!(Ulid::from_str(event_id).is_ok(), "{name}");
+                    assert_eq!(event_name, "WidgetNameChanged", "{name}");
+                    assert_eq!(
+                        payload,
+                        &serde_json::json!({"version": "V1", "widget_name": WIDGET_NAME}),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name:
+                    "部品の説明変更コマンドを実行した集約のAggregate テーブルのモデルから変換する",
+                aggregate_model: WidgetAggregateModel {
+                    widget_id: String::new(),
+                    last_events: serde_json::to_value(vec![
+                        WidgetEventMapper::WidgetDescriptionChanged {
+                            event_id: EVENT_ID.to_string(),
+                            payload: WidgetDescriptionChangedPayload::V1 {
+                                widget_description: WIDGET_DESCRIPTION.to_string(),
+                            },
+                        },
+                    ])
+                    .unwrap(),
+                    aggregate_version: 1,
+                },
+                assert: |name: _, result: Result<_, _>| {
+                    assert!(result.is_ok(), "{name}");
+                    let models = result.unwrap();
+                    assert_eq!(models.len(), 1, "{name}");
+                    let WidgetEventModel {
+                        event_id,
+                        event_name,
+                        payload,
+                    } = models.first().unwrap();
+                    assert!(Ulid::from_str(event_id).is_ok(), "{name}");
+                    assert_eq!(event_name, "WidgetDescriptionChanged", "{name}");
+                    assert_eq!(
+                        payload,
+                        &serde_json::json!({
+                            "version": "V1",
+                            "widget_description": WIDGET_DESCRIPTION
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, test.aggregate_model.try_into())
+        }
+    }
+
+    /// Event テーブルのモデルから WidgetEventMapper に変換するテスト
+    #[test]
+    fn test_convert_event_table_model_to_event_mapper() {
+        struct TestCase {
+            name: &'static str,
+            event_model: WidgetEventModel,
+            assert: fn(name: &str, result: Result<WidgetEventMapper, Error>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "V1 の部品作成イベントの Event テーブルのモデルから変換する",
+                event_model: WidgetEventModel {
+                    event_id: EVENT_ID.to_string(),
+                    event_name: "WidgetCreated".to_string(),
+                    payload: serde_json::to_value(WidgetCreatedPayload::V1 {
+                        widget_name: WIDGET_NAME.to_string(),
+                        widget_description: WIDGET_DESCRIPTION.to_string(),
+                    })
+                    .unwrap(),
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let mapper = result.unwrap();
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetCreated { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetCreated", "{name}");
+                    assert_eq!(
+                        mapper.to_payload_json_value().unwrap(),
+                        serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                            "widget_description": WIDGET_DESCRIPTION,
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "V1 の部品名変更イベントの Event テーブルのモデルから変換する",
+                event_model: WidgetEventModel {
+                    event_id: EVENT_ID.to_string(),
+                    event_name: "WidgetNameChanged".to_string(),
+                    payload: serde_json::to_value(WidgetNameChangedPayload::V1 {
+                        widget_name: WIDGET_NAME.to_string(),
+                    })
+                    .unwrap(),
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let mapper = result.unwrap();
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetNameChanged { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetNameChanged", "{name}");
+                    assert_eq!(
+                        mapper.to_payload_json_value().unwrap(),
+                        serde_json::json!({ "version": "V1", "widget_name": WIDGET_NAME }),
+                        "{name}",
+                    );
+                },
+            },
+            TestCase {
+                name: "V1 の部品の説明変更イベントの Event テーブルのモデルから変換する",
+                event_model: WidgetEventModel {
+                    event_id: EVENT_ID.to_string(),
+                    event_name: "WidgetDescriptionChanged".to_string(),
+                    payload: serde_json::to_value(WidgetDescriptionChangedPayload::V1 {
+                        widget_description: WIDGET_DESCRIPTION.to_string(),
+                    })
+                    .unwrap(),
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let mapper = result.unwrap();
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetDescriptionChanged { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetDescriptionChanged", "{name}");
+                    assert_eq!(
+                        mapper.to_payload_json_value().unwrap(),
+                        serde_json::json!({
+                            "version": "V1",
+                            "widget_description": WIDGET_DESCRIPTION,
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, test.event_model.try_into());
+        }
+    }
+
+    /// イベントから WidgetEventMapper に変換するテスト
+    #[test]
+    fn test_convert_event_to_event_mapper() {
+        struct TestCase {
+            name: &'static str,
+            event: WidgetEvent,
+            assert: fn(name: &str, mapper: WidgetEventMapper),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成イベントの場合、ペイロードが V1 の部品作成マッパーに変換される",
+                event: WidgetEvent::WidgetCreated {
+                    id: EVENT_ID.parse().unwrap(),
+                    widget_name: WIDGET_NAME.to_string(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name: _, mapper: _| {
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetCreated { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetCreated", "{name}");
+                    assert!(
+                        matches!(
+                            mapper,
+                            WidgetEventMapper::WidgetCreated { payload, .. }
+                                if matches!(payload, WidgetCreatedPayload::V1 { ..})
+                        ),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更イベントの場合、ペイロードが V1 の部品名変更マッパーに変換される",
+                event: WidgetEvent::WidgetNameChanged {
+                    id: EVENT_ID.parse().unwrap(),
+                    widget_name: WIDGET_NAME.to_string(),
+                },
+                assert: |name: _, mapper: _| {
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetNameChanged { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetNameChanged", "{name}");
+                    assert!(
+                        matches!(
+                            mapper,
+                            WidgetEventMapper::WidgetNameChanged { payload, .. }
+                                if matches!(payload, WidgetNameChangedPayload::V1 { ..})
+                        ),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name:
+                    "部品の説明変更イベントの場合、ペイロードが V1 の部品の説明変更マッパーに変換される",
+                event: WidgetEvent::WidgetDescriptionChanged {
+                    id: EVENT_ID.parse().unwrap(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name: _, mapper: _| {
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetDescriptionChanged { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetDescriptionChanged", "{name}");
+                    assert!(
+                        matches!(
+                            mapper,
+                            WidgetEventMapper::WidgetDescriptionChanged { payload, .. }
+                                if matches!(payload, WidgetDescriptionChangedPayload::V1 { ..})
+                        ),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, test.event.into());
+        }
+    }
+
+    /// WidgetEventMapper から JSON に変換するテスト
+    #[test]
+    fn test_convert_mapper_to_json() {
+        struct TestCase {
+            name: &'static str,
+            mapper: WidgetEventMapper,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成イベントのマッパーの場合、V1 の部品作成イベントのペイロードを持つ JSON に変換される",
+                mapper: WidgetEventMapper::WidgetCreated {
+                    event_id: EVENT_ID.to_string(),
+                    payload: WidgetCreatedPayload::V1 {
+                        widget_name: WIDGET_NAME.to_string(),
+                        widget_description: WIDGET_DESCRIPTION.to_string(),
+                    },
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let json = result.unwrap();
+                    assert_eq!(
+                        json,
+                        serde_json::json!({
+                            "event_id": EVENT_ID,
+                            "event_name": "WidgetCreated",
+                            "payload": serde_json::json!({
+                                "version": "V1",
+                                "widget_name": WIDGET_NAME,
+                                "widget_description": WIDGET_DESCRIPTION,
+                            }),
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更イベントのマッパーの場合、V1 の部品名変更イベントのペイロードを持つ JSON に変換される",
+                mapper: WidgetEventMapper::WidgetNameChanged {
+                    event_id: EVENT_ID.to_string(),
+                    payload: WidgetNameChangedPayload::V1 {
+                        widget_name: WIDGET_NAME.to_string(),
+                    },
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let json = result.unwrap();
+                    assert_eq!(
+                        json,
+                        serde_json::json!({
+                            "event_id": EVENT_ID,
+                            "event_name": "WidgetNameChanged",
+                            "payload": serde_json::json!({
+                                "version": "V1",
+                                "widget_name": WIDGET_NAME,
+                            }),
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品の説明変更イベントのマッパーの場合、V1 の部品の説明変更イベントのペイロードを持つ JSON に変換される",
+                mapper: WidgetEventMapper::WidgetDescriptionChanged {
+                    event_id: EVENT_ID.to_string(),
+                    payload: WidgetDescriptionChangedPayload::V1 {
+                        widget_description: WIDGET_DESCRIPTION.to_string(),
+                    },
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let json = result.unwrap();
+                    assert_eq!(
+                        json,
+                        serde_json::json!({
+                            "event_id": EVENT_ID,
+                            "event_name": "WidgetDescriptionChanged",
+                            "payload": serde_json::json!({
+                                "version": "V1",
+                                "widget_description": WIDGET_DESCRIPTION,
+                            }),
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.mapper));
+        }
+    }
+
+    /// WidgetCreatedPayload から JSON に変換するテスト
+    #[test]
+    fn test_convert_created_payload_to_json() {
+        struct TestCase {
+            name: &'static str,
+            payload: WidgetCreatedPayload,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![TestCase {
+            name: "V1 の部品作成イベントのペイロードを JSON に変換する",
+            payload: WidgetCreatedPayload::V1 {
+                widget_name: WIDGET_NAME.to_string(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            },
+            assert: |name: _, result: _| {
+                assert!(result.is_ok(), "{name}");
+                let json = result.unwrap();
+                assert_eq!(
+                    json,
+                    serde_json::json!({
+                        "version": "V1",
+                        "widget_name": WIDGET_NAME,
+                        "widget_description": WIDGET_DESCRIPTION,
+                    }),
+                    "{name}"
+                );
+            },
+        }];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.payload));
+        }
+    }
+
+    /// WidgetNameChangedPayload から JSON に変換するテスト
+    #[test]
+    fn test_convert_name_changed_payload_to_json() {
+        struct TestCase {
+            name: &'static str,
+            payload: WidgetNameChangedPayload,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![TestCase {
+            name: "V1 の部品名変更イベントのペイロードを JSON に変換する",
+            payload: WidgetNameChangedPayload::V1 {
+                widget_name: WIDGET_NAME.to_string(),
+            },
+            assert: |name: _, result: _| {
+                assert!(result.is_ok(), "{name}");
+                let json = result.unwrap();
+                assert_eq!(
+                    json,
+                    serde_json::json!({ "version": "V1", "widget_name": WIDGET_NAME }),
+                    "{name}"
+                );
+            },
+        }];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.payload));
+        }
+    }
+
+    /// WidgetCreatedPayload から JSON に変換するテスト
+    #[test]
+    fn test_convert_description_changed_payload_to_json() {
+        struct TestCase {
+            name: &'static str,
+            payload: WidgetDescriptionChangedPayload,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![TestCase {
+            name: "V1 の部品の説明変更イベントのペイロードを JSON に変換する",
+            payload: WidgetDescriptionChangedPayload::V1 {
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            },
+            assert: |name: _, result: _| {
+                assert!(result.is_ok(), "{name}");
+                let json = result.unwrap();
+                assert_eq!(
+                    json,
+                    serde_json::json!({
+                        "version": "V1",
+                        "widget_description": WIDGET_DESCRIPTION,
+                    }),
+                    "{name}"
+                );
+            },
+        }];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.payload));
+        }
+    }
+}

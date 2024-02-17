@@ -28,7 +28,9 @@ impl From<ApplyCommandError> for WidgetServiceError {
             ApplyCommandError::InvalidWidgetName | ApplyCommandError::InvalidWidgetDescription => {
                 WidgetServiceError::InvalidValue
             }
-            ApplyCommandError::VersionOverflow => WidgetServiceError::Unknow(value.into()),
+            ApplyCommandError::VersionOverflow | ApplyCommandError::AggregationAlreadyCreated => {
+                WidgetServiceError::Unknow(value.into())
+            }
         }
     }
 }
