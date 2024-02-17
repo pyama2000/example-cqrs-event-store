@@ -233,6 +233,7 @@ mod tests {
     use std::str::FromStr;
 
     use kernel::aggregate::WidgetAggregate;
+    use kernel::event::WidgetEvent;
     use lib::Error;
     use ulid::Ulid;
 
@@ -477,6 +478,92 @@ mod tests {
         ];
         for test in tests {
             (test.assert)(test.name, test.event_model.try_into());
+        }
+    }
+
+    /// イベントから WidgetEventMapper に変換するテスト
+    #[test]
+    fn test_convert_event_to_event_mapper() {
+        struct TestCase {
+            name: &'static str,
+            event: WidgetEvent,
+            assert: fn(name: &str, mapper: WidgetEventMapper),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成イベントの場合、ペイロードが V1 の部品作成マッパーに変換される",
+                event: WidgetEvent::WidgetCreated {
+                    id: EVENT_ID.parse().unwrap(),
+                    widget_name: WIDGET_NAME.to_string(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name: _, mapper: _| {
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetCreated { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetCreated", "{name}");
+                    assert!(
+                        matches!(
+                            mapper,
+                            WidgetEventMapper::WidgetCreated { payload, .. }
+                                if matches!(payload, WidgetCreatedPayload::V1 { ..})
+                        ),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更イベントの場合、ペイロードが V1 の部品名変更マッパーに変換される",
+                event: WidgetEvent::WidgetNameChanged {
+                    id: EVENT_ID.parse().unwrap(),
+                    widget_name: WIDGET_NAME.to_string(),
+                },
+                assert: |name: _, mapper: _| {
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetNameChanged { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetNameChanged", "{name}");
+                    assert!(
+                        matches!(
+                            mapper,
+                            WidgetEventMapper::WidgetNameChanged { payload, .. }
+                                if matches!(payload, WidgetNameChangedPayload::V1 { ..})
+                        ),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name:
+                    "部品の説明変更イベントの場合、ペイロードが V1 の部品の説明変更マッパーに変換される",
+                event: WidgetEvent::WidgetDescriptionChanged {
+                    id: EVENT_ID.parse().unwrap(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+                assert: |name: _, mapper: _| {
+                    assert!(
+                        matches!(mapper, WidgetEventMapper::WidgetDescriptionChanged { .. }),
+                        "{name}"
+                    );
+                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_name(), "WidgetDescriptionChanged", "{name}");
+                    assert!(
+                        matches!(
+                            mapper,
+                            WidgetEventMapper::WidgetDescriptionChanged { payload, .. }
+                                if matches!(payload, WidgetDescriptionChangedPayload::V1 { ..})
+                        ),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, test.event.into());
         }
     }
 }
