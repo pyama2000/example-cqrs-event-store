@@ -152,3 +152,119 @@ impl CommandProcessor for WidgetRepository {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::future::Future;
+    use std::pin::Pin;
+
+    use kernel::aggregate::{WidgetAggregate, WidgetCommandState};
+    use kernel::command::WidgetCommand;
+    use kernel::error::AggregateError;
+    use kernel::processor::CommandProcessor;
+    use kernel::Id;
+    use lib::Error;
+    use testcontainers::clients::Cli;
+    use testcontainers_modules::mysql::Mysql;
+
+    use crate::model::{WidgetAggregateModel, WidgetEventModel};
+    use crate::persistence::{connect, ConnectionPool};
+    use crate::repository::WidgetRepository;
+
+    type AsyncAssertFn<'a, T> = Box<
+        fn(
+            name: &'a str,
+            actual: T,
+            pool: ConnectionPool,
+        ) -> Box<dyn Future<Output = Result<(), Error>> + Send>,
+    >;
+
+    const WIDGET_NAME: &str = "部品名";
+    const WIDGET_DESCRIPTION: &str = "部品の説明";
+
+    /// 集約の作成を永続化するテスト
+    #[tokio::test]
+    async fn test_crate_aggregate() -> Result<(), Error> {
+        let docker = Cli::default();
+        let container = docker.run(Mysql::default());
+        let pool = connect(&format!(
+            "mysql://root@127.0.0.1:{}/mysql",
+            container.get_host_port_ipv4(3306)
+        ))
+        .await?;
+        sqlx::query(include_str!(
+            "../../../migrations/20240210132634_create_aggregate.sql"
+        ))
+        .execute(&pool)
+        .await?;
+        sqlx::query(include_str!(
+            "../../../migrations/20240210132646_create_event.sql"
+        ))
+        .execute(&pool)
+        .await?;
+
+        struct TestCase<'a> {
+            name: &'a str,
+            command_state: WidgetCommandState,
+            assert: AsyncAssertFn<'a, Result<(), AggregateError>>,
+        }
+        let tests = vec![TestCase {
+            name: "部品作成コマンドの場合、Aggregate テーブルにのみ永続化される",
+            command_state: WidgetAggregate::default().apply_command(
+                WidgetCommand::CreateWidget {
+                    widget_name: WIDGET_NAME.to_string(),
+                    widget_description: WIDGET_DESCRIPTION.to_string(),
+                },
+            )?,
+            assert: Box::new(move |name, result, pool| {
+                Box::new(async move {
+                    assert!(result.is_ok(), "{name}");
+                    let models: Vec<WidgetAggregateModel> =
+                        sqlx::query_as("SELECT * FROM aggregate")
+                            .fetch_all(&pool)
+                            .await?;
+                    assert_eq!(models.len(), 1, "{name}");
+                    let model = models.first().unwrap();
+                    assert!(
+                        model.widget_id().parse::<Id<WidgetAggregate>>().is_ok(),
+                        "{name}"
+                    );
+                    assert_eq!(model.aggregate_version(), 0, "{name}");
+                    let last_events = model.last_events().as_array();
+                    assert!(last_events.is_some(), "{name}");
+                    let last_events = last_events.unwrap();
+                    assert_eq!(last_events.len(), 1, "{name}");
+                    let event = last_events.first().unwrap();
+                    assert_eq!(
+                        event.get("event_name"),
+                        Some(&serde_json::json!("WidgetCreated")),
+                        "{name}"
+                    );
+                    assert_eq!(
+                        event.get("payload"),
+                        Some(&serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                            "widget_description": WIDGET_DESCRIPTION,
+                        })),
+                        "{name}"
+                    );
+                    let models: Vec<WidgetEventModel> = sqlx::query_as("SELECT * FROM event")
+                        .fetch_all(&pool)
+                        .await?;
+                    assert_eq!(models.len(), 0, "{name}");
+                    Ok(())
+                })
+            }),
+        }];
+        let repository = WidgetRepository::new(pool.clone());
+        for test in tests {
+            let result = repository.create_widget_aggregate(test.command_state).await;
+            Pin::from((test.assert)(test.name, result, pool.clone())).await?;
+        }
+        Ok(())
+    }
+
+        Ok(())
+    }
+}
