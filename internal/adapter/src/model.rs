@@ -566,4 +566,188 @@ mod tests {
             (test.assert)(test.name, test.event.into());
         }
     }
+
+    /// WidgetEventMapper から JSON に変換するテスト
+    #[test]
+    fn test_convert_mapper_to_json() {
+        struct TestCase {
+            name: &'static str,
+            mapper: WidgetEventMapper,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品作成イベントのマッパーの場合、V1 の部品作成イベントのペイロードを持つ JSON に変換される",
+                mapper: WidgetEventMapper::WidgetCreated {
+                    event_id: EVENT_ID.to_string(),
+                    payload: WidgetCreatedPayload::V1 {
+                        widget_name: WIDGET_NAME.to_string(),
+                        widget_description: WIDGET_DESCRIPTION.to_string(),
+                    },
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let json = result.unwrap();
+                    assert_eq!(
+                        json,
+                        serde_json::json!({
+                            "event_id": EVENT_ID,
+                            "event_name": "WidgetCreated",
+                            "payload": serde_json::json!({
+                                "version": "V1",
+                                "widget_name": WIDGET_NAME,
+                                "widget_description": WIDGET_DESCRIPTION,
+                            }),
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品名変更イベントのマッパーの場合、V1 の部品名変更イベントのペイロードを持つ JSON に変換される",
+                mapper: WidgetEventMapper::WidgetNameChanged {
+                    event_id: EVENT_ID.to_string(),
+                    payload: WidgetNameChangedPayload::V1 {
+                        widget_name: WIDGET_NAME.to_string(),
+                    },
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let json = result.unwrap();
+                    assert_eq!(
+                        json,
+                        serde_json::json!({
+                            "event_id": EVENT_ID,
+                            "event_name": "WidgetNameChanged",
+                            "payload": serde_json::json!({
+                                "version": "V1",
+                                "widget_name": WIDGET_NAME,
+                            }),
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "部品の説明変更イベントのマッパーの場合、V1 の部品の説明変更イベントのペイロードを持つ JSON に変換される",
+                mapper: WidgetEventMapper::WidgetDescriptionChanged {
+                    event_id: EVENT_ID.to_string(),
+                    payload: WidgetDescriptionChangedPayload::V1 {
+                        widget_description: WIDGET_DESCRIPTION.to_string(),
+                    },
+                },
+                assert: |name: _, result: _| {
+                    assert!(result.is_ok(), "{name}");
+                    let json = result.unwrap();
+                    assert_eq!(
+                        json,
+                        serde_json::json!({
+                            "event_id": EVENT_ID,
+                            "event_name": "WidgetDescriptionChanged",
+                            "payload": serde_json::json!({
+                                "version": "V1",
+                                "widget_description": WIDGET_DESCRIPTION,
+                            }),
+                        }),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.mapper));
+        }
+    }
+
+    /// WidgetCreatedPayload から JSON に変換するテスト
+    #[test]
+    fn test_convert_created_payload_to_json() {
+        struct TestCase {
+            name: &'static str,
+            payload: WidgetCreatedPayload,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![TestCase {
+            name: "V1 の部品作成イベントのペイロードを JSON に変換する",
+            payload: WidgetCreatedPayload::V1 {
+                widget_name: WIDGET_NAME.to_string(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            },
+            assert: |name: _, result: _| {
+                assert!(result.is_ok(), "{name}");
+                let json = result.unwrap();
+                assert_eq!(
+                    json,
+                    serde_json::json!({
+                        "version": "V1",
+                        "widget_name": WIDGET_NAME,
+                        "widget_description": WIDGET_DESCRIPTION,
+                    }),
+                    "{name}"
+                );
+            },
+        }];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.payload));
+        }
+    }
+
+    /// WidgetNameChangedPayload から JSON に変換するテスト
+    #[test]
+    fn test_convert_name_changed_payload_to_json() {
+        struct TestCase {
+            name: &'static str,
+            payload: WidgetNameChangedPayload,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![TestCase {
+            name: "V1 の部品名変更イベントのペイロードを JSON に変換する",
+            payload: WidgetNameChangedPayload::V1 {
+                widget_name: WIDGET_NAME.to_string(),
+            },
+            assert: |name: _, result: _| {
+                assert!(result.is_ok(), "{name}");
+                let json = result.unwrap();
+                assert_eq!(
+                    json,
+                    serde_json::json!({ "version": "V1", "widget_name": WIDGET_NAME }),
+                    "{name}"
+                );
+            },
+        }];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.payload));
+        }
+    }
+
+    /// WidgetCreatedPayload から JSON に変換するテスト
+    #[test]
+    fn test_convert_description_changed_payload_to_json() {
+        struct TestCase {
+            name: &'static str,
+            payload: WidgetDescriptionChangedPayload,
+            assert: fn(name: &str, result: Result<serde_json::Value, serde_json::Error>),
+        }
+        let tests = vec![TestCase {
+            name: "V1 の部品の説明変更イベントのペイロードを JSON に変換する",
+            payload: WidgetDescriptionChangedPayload::V1 {
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            },
+            assert: |name: _, result: _| {
+                assert!(result.is_ok(), "{name}");
+                let json = result.unwrap();
+                assert_eq!(
+                    json,
+                    serde_json::json!({
+                        "version": "V1",
+                        "widget_description": WIDGET_DESCRIPTION,
+                    }),
+                    "{name}"
+                );
+            },
+        }];
+        for test in tests {
+            (test.assert)(test.name, serde_json::to_value(test.payload));
+        }
+    }
 }
