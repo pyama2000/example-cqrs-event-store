@@ -87,6 +87,21 @@ impl WidgetAggregate {
         }
         Ok(self)
     }
+
+    pub fn set_name(mut self, name: String) -> Self {
+        self.name = name;
+        self
+    }
+
+    pub fn set_description(mut self, description: String) -> Self {
+        self.description = description;
+        self
+    }
+
+    pub fn set_version(mut self, version: u64) -> Self {
+        self.version = version;
+        self
+    }
 }
 
 /// 集約 (Aggregate) に対するコマンドの処理を成功して保存可能になった状態
