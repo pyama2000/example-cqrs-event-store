@@ -1001,4 +1001,68 @@ mod tests {
         }
         Ok(())
     }
+
+    /// 同時に集約を更新した時に更新済みのエラーが返ることをテストする
+    #[tokio::test]
+    async fn test_update_widget_aggregate_return_conflict_error() -> Result<(), Error> {
+        const NAME: &str = "同時に集約を更新した場合, 更新済みのエラーが返る";
+
+        let docker = Cli::default();
+        let container = docker.run(Mysql::default());
+        let pool = connect(&format!(
+            "mysql://root@127.0.0.1:{}/mysql",
+            container.get_host_port_ipv4(3306)
+        ))
+        .await?;
+        sqlx::query(include_str!(
+            "../../../migrations/20240210132634_create_aggregate.sql"
+        ))
+        .execute(&pool)
+        .await?;
+        sqlx::query(include_str!(
+            "../../../migrations/20240210132646_create_event.sql"
+        ))
+        .execute(&pool)
+        .await?;
+
+        let repository = WidgetRepository::new(pool.clone());
+        let widget_id: Id<WidgetAggregate> = DateTime::DT2023_01_01_00_00_00_00.id().parse()?;
+        let fixture = Fixture::aggregate(
+            widget_id.to_string(),
+            serde_json::json!([{
+                "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
+                "event_name": "WidgetCreated",
+                "payload": {
+                    "version": "V1",
+                    "widget_name": WIDGET_NAME,
+                    "widget_description": WIDGET_DESCRIPTION,
+                },
+            }]),
+            0,
+        );
+        fixture.execute(&pool).await?;
+        let aggregate = repository.get_widget_aggregate(widget_id).await?;
+        let should_success_command_state =
+            aggregate
+                .clone()
+                .apply_command(WidgetCommand::ChangeWidgetName {
+                    widget_name: WIDGET_NAME.to_string(),
+                })?;
+        let should_conflict_command_state =
+            aggregate.apply_command(WidgetCommand::ChangeWidgetDescription {
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+            })?;
+        let result = repository
+            .update_widget_aggregate(should_success_command_state)
+            .await;
+        assert!(result.is_ok(), "{NAME}");
+        let result = repository
+            .update_widget_aggregate(should_conflict_command_state)
+            .await;
+        assert!(
+            result.is_err_and(|e| matches!(e, AggregateError::Conflict)),
+            "{NAME}"
+        );
+        Ok(())
+    }
 }
