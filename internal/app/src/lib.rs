@@ -422,4 +422,131 @@ mod tests {
             (test.assert)(test.name, result);
         }
     }
+
+    /// 部品の説明を変更するテスト
+    #[tokio::test]
+    async fn test_change_widget_description() {
+        struct TestCase<T: CommandProcessor> {
+            name: &'static str,
+            widget_id: String,
+            widget_description: String,
+            command: T,
+            assert: fn(name: &str, result: Result<(), WidgetServiceError>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品の説明の形式が正しく永続化時にエラーがない場合は、処理に成功する",
+                widget_id: DateTime::DT2023_01_01_00_00_00_00.id(),
+                widget_description: "部品の説明v2".to_string(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command.expect_get_widget_aggregate().returning(|_| {
+                        Box::pin(async {
+                            Ok(WidgetAggregate::new(
+                                DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
+                            )
+                            .set_name(WIDGET_NAME.to_string())
+                            .set_description(WIDGET_DESCRIPTION.to_string())
+                            .set_version(1))
+                        })
+                    });
+                    command
+                        .expect_update_widget_aggregate()
+                        .withf(|x| {
+                            matches!(
+                                x.events().first().unwrap(),
+                                WidgetEvent::WidgetDescriptionChanged {
+                                    widget_description,
+                                    ..
+                                } if widget_description == "部品の説明v2"
+                            )
+                        })
+                        .times(1)
+                        .returning(|_| Box::pin(async { Ok(()) }));
+                    command
+                },
+                assert: |name, result| {
+                    assert!(result.is_ok(), "{name}");
+                },
+            },
+            TestCase {
+                name: "部品の説明の形式が不正な場合、WidgetServiceError::InvalidValue が返る",
+                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
+                widget_description: String::new(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command
+                        .expect_get_widget_aggregate()
+                        .returning(|_| Box::pin(async { Ok(WidgetAggregate::default()) }));
+                    command
+                        .expect_update_widget_aggregate()
+                        .returning(|_| Box::pin(async { Ok(()) }));
+                    command
+                },
+                assert: |name, result| {
+                    assert!(
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::InvalidValue)),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "永続化時に既に集約が更新されている場合、一定数再試行する",
+                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command.expect_get_widget_aggregate().returning(|_| {
+                        Box::pin(async {
+                            Ok(WidgetAggregate::new(
+                                DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
+                            )
+                            .set_name(WIDGET_NAME.to_string())
+                            .set_description(WIDGET_DESCRIPTION.to_string())
+                            .set_version(1))
+                        })
+                    });
+                    command
+                        .expect_update_widget_aggregate()
+                        .times((MAX_RETRY_COUNT + 1) as usize) // NOTE: 最初の1回 + 再試行回数
+                        .returning(|_| Box::pin(async { Err(AggregateError::Conflict) }));
+                    command
+                },
+                assert: |name, result| {
+                    assert!(
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::AggregateConfilict)),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "永続化時に不明なエラーが発生した場合は、WidgetServiceError::Unknow が返る",
+                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command
+                        .expect_get_widget_aggregate()
+                        .returning(|_| Box::pin(async { Ok(WidgetAggregate::default()) }));
+                    command.expect_update_widget_aggregate().returning(|_| {
+                        Box::pin(async { Err(AggregateError::Unknow("unknown".into())) })
+                    });
+                    command
+                },
+                assert: |name, result| {
+                    assert!(
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknow(_))),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            let service = WidgetServiceImpl::new(test.command);
+            let result = service
+                .change_widget_description(test.widget_id, test.widget_description)
+                .await;
+            (test.assert)(test.name, result);
+        }
+    }
 }
