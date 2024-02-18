@@ -56,6 +56,10 @@ impl WidgetAggregate {
         events: Vec<WidgetEvent>,
         version: u64,
     ) -> Result<Self, LoadEventError> {
+        if events.is_empty() {
+            return Err(LoadEventError::EventsIsEmpty);
+        }
+
         for event in events {
             match event {
                 WidgetEvent::WidgetCreated {

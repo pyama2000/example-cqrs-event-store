@@ -161,7 +161,7 @@ mod tests {
 
     use kernel::aggregate::{WidgetAggregate, WidgetCommandState};
     use kernel::command::WidgetCommand;
-    use kernel::error::AggregateError;
+    use kernel::error::{AggregateError, LoadEventError};
     use kernel::processor::CommandProcessor;
     use kernel::Id;
     use lib::Error;
@@ -763,6 +763,8 @@ mod tests {
                 assert: Box::new(move |name, result, _| {
                     Box::new(async move {
                         assert!(result.is_err(), "{name}");
+                        let e = result.err().unwrap();
+                        assert_eq!(e.to_string(), LoadEventError::EventsIsEmpty.to_string(), "{name}");
                         Ok(())
                     })
                 }),
