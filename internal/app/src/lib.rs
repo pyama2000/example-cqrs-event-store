@@ -163,7 +163,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
 #[cfg(test)]
 mod tests {
     use kernel::aggregate::WidgetAggregate;
-    use kernel::error::AggregateError;
+    use kernel::error::{AggregateError, ApplyCommandError};
     use kernel::event::WidgetEvent;
     use kernel::processor::{CommandProcessor, MockCommandProcessor};
 
@@ -209,6 +209,62 @@ mod tests {
                 DateTime::DT2024_01_01_00_00_00_00 => "01HK153X00D14NM09FKYEJ7MPY",
             }
             .to_string()
+        }
+    }
+
+    /// ApplyCommandError から WidgetServiceError に変換するテスト
+    #[test]
+    fn test_convert_apply_command_error_to_service_error() {
+        struct TestCase {
+            error: ApplyCommandError,
+            assert: fn(error: WidgetServiceError),
+        }
+        let tests = vec![
+            TestCase {
+                error: ApplyCommandError::InvalidWidgetName,
+                assert: |error| assert!(matches!(error, WidgetServiceError::InvalidValue)),
+            },
+            TestCase {
+                error: ApplyCommandError::InvalidWidgetDescription,
+                assert: |error| assert!(matches!(error, WidgetServiceError::InvalidValue)),
+            },
+            TestCase {
+                error: ApplyCommandError::VersionOverflow,
+                assert: |error| assert!(matches!(error, WidgetServiceError::Unknow(_))),
+            },
+            TestCase {
+                error: ApplyCommandError::AggregationAlreadyCreated,
+                assert: |error| assert!(matches!(error, WidgetServiceError::Unknow(_))),
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.error.into());
+        }
+    }
+
+    /// AggregateError から WidgetServiceError に変換するテスト
+    #[test]
+    fn test_convert_aggregate_error_to_service_error() {
+        struct TestCase {
+            error: AggregateError,
+            assert: fn(error: WidgetServiceError),
+        }
+        let tests = vec![
+            TestCase {
+                error: AggregateError::Conflict,
+                assert: |error| assert!(matches!(error, WidgetServiceError::AggregateConfilict)),
+            },
+            TestCase {
+                error: AggregateError::NotFound,
+                assert: |error| assert!(matches!(error, WidgetServiceError::AggregateNotFound)),
+            },
+            TestCase {
+                error: AggregateError::Unknow("".into()),
+                assert: |error| assert!(matches!(error, WidgetServiceError::Unknow(_))),
+            },
+        ];
+        for test in tests {
+            (test.assert)(test.error.into());
         }
     }
 
