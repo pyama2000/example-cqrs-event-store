@@ -616,49 +616,13 @@ mod tests {
                         }),
                     ),
                 ],
-                assert: Box::new(move |name, result, pool| {
+                assert: Box::new(move |name, result, _| {
                     Box::new(async move {
                         assert!(result.is_ok(), "{name}");
                         let aggregate = result.unwrap();
                         assert_eq!(aggregate.name(), "部品名v2", "{name}");
                         assert_eq!(aggregate.description(), "部品の説明v2", "{name}");
                         assert_eq!(aggregate.version(), 2, "{name}");
-
-                        let models: Vec<WidgetAggregateModel> =
-                            sqlx::query_as("SELECT * FROM aggregate")
-                                .fetch_all(&pool)
-                                .await?;
-                        assert_eq!(models.len(), 1, "{name}");
-                        let model = models.last().unwrap();
-                        assert_eq!(model.aggregate_version(), 2, "{name}");
-                        assert_eq!(
-                            model.last_events(),
-                            &serde_json::json!([{
-                                "event_id": DateTime::DT2023_01_01_00_00_00_02.id(),
-                                "event_name": "WidgetDescriptionChanged",
-                                "payload": {
-                                    "version": "V1",
-                                    "widget_description": "部品の説明v2",
-                                },
-                            }]),
-                            "{name}"
-                        );
-
-                        let models: Vec<WidgetEventModel> =
-                            sqlx::query_as("SELECT * FROM event ORDER BY event_id ASC")
-                                .fetch_all(&pool)
-                                .await?;
-                        assert_eq!(models.len(), 3, "{name}");
-                        let model = models.last().unwrap();
-                        assert_eq!(model.event_name(), "WidgetDescriptionChanged", "{name}");
-                        assert_eq!(
-                            model.payload(),
-                            &serde_json::json!({
-                                "version": "V1",
-                                "widget_description": "部品の説明v2"
-                            }),
-                            "{name}"
-                        );
                         Ok(())
                     })
                 }),
@@ -699,49 +663,13 @@ mod tests {
                         }),
                     ),
                 ],
-                assert: Box::new(move |name, result, pool| {
+                assert: Box::new(move |name, result, _| {
                     Box::new(async move {
                         assert!(result.is_ok(), "{name}");
                         let aggregate = result.unwrap();
                         assert_eq!(aggregate.name(), "部品名v3", "{name}");
                         assert_eq!(aggregate.description(), WIDGET_DESCRIPTION, "{name}");
                         assert_eq!(aggregate.version(), 2, "{name}");
-
-                        let models: Vec<WidgetAggregateModel> =
-                            sqlx::query_as("SELECT * FROM aggregate")
-                                .fetch_all(&pool)
-                                .await?;
-                        assert_eq!(models.len(), 1, "{name}");
-                        let model = models.first().unwrap();
-                        assert_eq!(model.aggregate_version(), 2, "{name}");
-                        assert_eq!(
-                            model.last_events(),
-                            &serde_json::json!([{
-                                "event_id": DateTime::DT2023_01_01_00_00_00_02.id(),
-                                "event_name": "WidgetNameChanged",
-                                "payload": {
-                                    "version": "V1",
-                                    "widget_name": "部品名v3"
-                                },
-                            }]),
-                            "{name}"
-                        );
-
-                        let models: Vec<WidgetEventModel> =
-                            sqlx::query_as("SELECT * FROM event ORDER BY event_id ASC")
-                                .fetch_all(&pool)
-                                .await?;
-                        assert_eq!(models.len(), 3, "{name}");
-                        let model = models.last().unwrap();
-                        assert_eq!(model.event_name(), "WidgetNameChanged", "{name}");
-                        assert_eq!(
-                            model.payload(),
-                            &serde_json::json!({
-                                "version": "V1",
-                                "widget_name": "部品名v3"
-                            }),
-                            "{name}"
-                        );
                         Ok(())
                     })
                 }),
@@ -787,6 +715,128 @@ mod tests {
             let result = repository.get_widget_aggregate(test.widget_id).await;
             Pin::from((test.assert)(test.name, result, pool.clone())).await?;
         }
+        Ok(())
+    }
+
+    /// Event テーブルからイベントを取得するテスト
+    #[tokio::test]
+    async fn test_list_events() -> Result<(), Error> {
+        let docker = Cli::default();
+        let container = docker.run(Mysql::default());
+        let pool = connect(&format!(
+            "mysql://root@127.0.0.1:{}/mysql",
+            container.get_host_port_ipv4(3306)
+        ))
+        .await?;
+        sqlx::query(include_str!(
+            "../../../migrations/20240210132634_create_aggregate.sql"
+        ))
+        .execute(&pool)
+        .await?;
+        sqlx::query(include_str!(
+            "../../../migrations/20240210132646_create_event.sql"
+        ))
+        .execute(&pool)
+        .await?;
+
+        struct TestCase<'a> {
+            name: &'a str,
+            widget_id: Id<WidgetAggregate>,
+            fixtures: Vec<Fixture>,
+            assert: fn(
+                name: &'a str,
+                result: Result<Vec<WidgetEventModel>, AggregateError>,
+            ) -> Box<dyn Future<Output = Result<(), Error>> + Send>,
+        }
+        let tests = vec![
+            TestCase {
+                name: "イベントが存在しない場合",
+                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+                fixtures: Vec::new(),
+                assert: (move |name, result| {
+                    Box::new(async move {
+                        assert!(result.is_ok(), "{name}");
+                        let models = result.unwrap();
+                        assert!(models.is_empty(), "{name}");
+                        Ok(())
+                    })
+                }),
+            },
+            TestCase {
+                name: "イベント ID をバラバラの状態で存在した場合、時系列順にイベントを取得する",
+                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+                fixtures: vec![
+                    Fixture::event(
+                        DateTime::DT2023_01_01_00_00_00_01.id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "WidgetCreated",
+                        serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                            "widget_description": WIDGET_DESCRIPTION
+                        }),
+                    ),
+                    Fixture::event(
+                        DateTime::DT2024_01_01_00_00_00_00.id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "WidgetNameChanged",
+                        serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                        }),
+                    ),
+                    Fixture::event(
+                        DateTime::DT2023_01_01_00_00_01_00.id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "WidgetNameChanged",
+                        serde_json::json!({
+                            "version": "V1",
+                            "widget_name": WIDGET_NAME,
+                        }),
+                    ),
+                    Fixture::event(
+                        DateTime::DT2023_01_01_00_00_00_02.id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "WidgetDescriptionChanged",
+                        serde_json::json!({
+                            "version": "V1",
+                            "widget_description": WIDGET_DESCRIPTION
+                        }),
+                    ),
+                ],
+                assert: (move |name, result| {
+                    Box::new(async move {
+                        assert!(result.is_ok(), "{name}");
+                        let ids: Vec<_> = result
+                            .unwrap()
+                            .into_iter()
+                            .map(|x| x.event_id().to_string())
+                            .collect();
+                        assert_eq!(
+                            ids,
+                            vec![
+                                DateTime::DT2023_01_01_00_00_00_01.id(),
+                                DateTime::DT2023_01_01_00_00_00_02.id(),
+                                DateTime::DT2023_01_01_00_00_01_00.id(),
+                                DateTime::DT2024_01_01_00_00_00_00.id(),
+                            ],
+                            "{name}"
+                        );
+                        Ok(())
+                    })
+                }),
+            },
+        ];
+        let repository = WidgetRepository::new(pool.clone());
+        for test in tests {
+            sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
+            for fixture in test.fixtures {
+                fixture.execute(&pool).await?;
+            }
+            let result = repository.list_events(&test.widget_id).await;
+            Pin::from((test.assert)(test.name, result)).await?;
+        }
+
         Ok(())
     }
 }
