@@ -88,16 +88,19 @@ impl WidgetAggregate {
         Ok(self)
     }
 
+    #[cfg(feature = "test")]
     pub fn set_name(mut self, name: String) -> Self {
         self.name = name;
         self
     }
 
+    #[cfg(feature = "test")]
     pub fn set_description(mut self, description: String) -> Self {
         self.description = description;
         self
     }
 
+    #[cfg(feature = "test")]
     pub fn set_version(mut self, version: u64) -> Self {
         self.version = version;
         self
