@@ -3,6 +3,7 @@ use crate::error::AggregateError;
 use crate::Id;
 
 /// 集約を永続化する処理のインターフェイス
+#[mockall::automock]
 pub trait CommandProcessor {
     /// 部品の集約を新しく作成する
     fn create_widget_aggregate(
