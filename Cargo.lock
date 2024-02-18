@@ -65,6 +65,7 @@ dependencies = [
  "kernel",
  "lib",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]

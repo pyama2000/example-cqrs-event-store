@@ -156,3 +156,99 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use kernel::error::AggregateError;
+    use kernel::event::WidgetEvent;
+    use kernel::processor::{CommandProcessor, MockCommandProcessor};
+
+    use crate::{WidgetService, WidgetServiceError, WidgetServiceImpl};
+
+    const WIDGET_NAME: &str = "部品名";
+    const WIDGET_DESCRIPTION: &str = "部品の説明";
+
+    /// 部品を作成するテスト
+    #[tokio::test]
+    async fn test_create_widget() {
+        struct TestCase<T: CommandProcessor> {
+            name: &'static str,
+            widget_name: String,
+            widget_description: String,
+            command: T,
+            assert: fn(name: &str, result: Result<String, WidgetServiceError>),
+        }
+        let tests = vec![
+            TestCase {
+                name: "部品名・部品の説明の形式が正しく永続化時にエラーがない場合、処理に成功する",
+                widget_name: WIDGET_NAME.to_string(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command
+                        .expect_create_widget_aggregate()
+                        .withf(|x| {
+                            matches!(
+                                x.events().first().unwrap(),
+                                WidgetEvent::WidgetCreated {
+                                    widget_name,
+                                    widget_description,
+                                    ..
+                                } if widget_name == WIDGET_NAME
+                                    && widget_description == WIDGET_DESCRIPTION
+                            )
+                        })
+                        .returning(|_| Box::pin(async { Ok(()) }));
+                    command
+                },
+                assert: |name, result| {
+                    assert!(result.is_ok(), "{name}");
+                },
+            },
+            TestCase {
+                name:
+                    "部品名・部品の説明の形式が不正な場合、WidgetServiceError::InvalidValue が返る",
+                widget_name: String::new(),
+                widget_description: String::new(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command
+                        .expect_create_widget_aggregate()
+                        .returning(|_| Box::pin(async { Ok(()) }));
+                    command
+                },
+                assert: |name, result| {
+                    assert!(
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::InvalidValue)),
+                        "{name}"
+                    );
+                },
+            },
+            TestCase {
+                name: "永続化時にエラーが発生した場合は、WidgetServiceError::Unknow が返る",
+                widget_name: WIDGET_NAME.to_string(),
+                widget_description: WIDGET_DESCRIPTION.to_string(),
+                command: {
+                    let mut command = MockCommandProcessor::new();
+                    command.expect_create_widget_aggregate().returning(|_| {
+                        Box::pin(async { Err(AggregateError::Unknow("unknown".into())) })
+                    });
+                    command
+                },
+                assert: |name, result| {
+                    assert!(
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknow(_))),
+                        "{name}"
+                    );
+                },
+            },
+        ];
+        for test in tests {
+            let service = WidgetServiceImpl::new(test.command);
+            let result = service
+                .create_widget(test.widget_name, test.widget_description)
+                .await;
+            (test.assert)(test.name, result);
+        }
+    }
+}
