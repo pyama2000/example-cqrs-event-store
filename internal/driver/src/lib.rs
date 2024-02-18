@@ -14,17 +14,16 @@ use tokio::signal;
 use tower_http::timeout::TimeoutLayer;
 
 #[derive(Debug, Clone)]
-pub struct Server<T: ToSocketAddrs, S: WidgetService> {
+pub struct Server<T: ToSocketAddrs> {
     addr: T,
-    service: Arc<S>,
+    router: Router,
 }
 
-impl<T: ToSocketAddrs + std::fmt::Display, S: WidgetService + Send + Sync + 'static> Server<T, S> {
-    pub fn new(addr: T, service: Arc<S>) -> Self {
-        Self { addr, service }
-    }
-
-    pub async fn run(self) -> Result<(), Error> {
+impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
+    pub fn new<S>(addr: T, service: Arc<S>) -> Self
+    where
+        S: WidgetService + Send + Sync + 'static,
+    {
         let router = Router::new()
             .route("/healthz", get(|| async { StatusCode::OK }))
             .nest(
@@ -36,11 +35,15 @@ impl<T: ToSocketAddrs + std::fmt::Display, S: WidgetService + Send + Sync + 'sta
                         .route("/description", post(change_widget_description)),
                 ),
             )
-            .with_state(self.service)
+            .with_state(service)
             .layer(TimeoutLayer::new(Duration::from_millis(100)));
+        Self { addr, router }
+    }
+
+    pub async fn run(self) -> Result<(), Error> {
         let listener = TcpListener::bind(&self.addr).await?;
         println!("listening: {}", &self.addr);
-        axum::serve(listener, router)
+        axum::serve(listener, self.router)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
         Ok(())
