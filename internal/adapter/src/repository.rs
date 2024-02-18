@@ -20,6 +20,18 @@ impl WidgetRepository {
     pub fn new(pool: ConnectionPool) -> Self {
         Self { pool }
     }
+
+    /// 時系列順にイベントを取得する
+    async fn list_events(
+        &self,
+        widget_id: &kernel::Id<WidgetAggregate>,
+    ) -> Result<Vec<WidgetEventModel>, AggregateError> {
+        sqlx::query_as("SELECT * FROM event WHERE widget_id = ? ORDER BY event_id ASC")
+            .bind(widget_id.to_string())
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| AggregateError::Unknow(e.into()))
+    }
 }
 
 impl CommandProcessor for WidgetRepository {
@@ -65,7 +77,6 @@ impl CommandProcessor for WidgetRepository {
             };
         // ビジネスロジックの適用の前にイベントと集約のデータが正しい状態にあることを保証するために
         // 前回集約が保存された際に作成されたイベントを Event テーブルに個々の項目として永続化する
-        let widget_id = widget_id.to_string();
         let aggregate_version = model.aggregate_version();
         let models: Vec<WidgetEventModel> = model.try_into()?;
         let mut tx = self
@@ -76,7 +87,7 @@ impl CommandProcessor for WidgetRepository {
         for model in models {
             let result = sqlx::query(QUERY_INSERT_EVENT)
                 .bind(model.event_id())
-                .bind(&widget_id)
+                .bind(&widget_id.to_string())
                 .bind(model.event_name())
                 .bind(model.payload())
                 .execute(&mut *tx)
@@ -93,13 +104,7 @@ impl CommandProcessor for WidgetRepository {
             .await
             .map_err(|e| AggregateError::Unknow(e.into()))?;
         // 関連するすべてのイベントを読み込んで集約の状態を復元する
-        let models: Vec<WidgetEventModel> =
-            // NOTE: 時系列にしたがってイベントから集約を復元するために event_id の昇順でソートする
-            sqlx::query_as("SELECT * FROM event WHERE widget_id = ? ORDER BY event_id ASC")
-                .bind(&widget_id)
-                .fetch_all(&self.pool)
-                .await
-                .map_err(|e| AggregateError::Unknow(e.into()))?;
+        let models: Vec<WidgetEventModel> = self.list_events(&widget_id).await?;
         let mappers: Vec<Result<WidgetEventMapper, Error>> =
             models.into_iter().map(|x| x.try_into()).collect();
         if mappers.iter().any(|x| x.is_err()) {
@@ -111,7 +116,7 @@ impl CommandProcessor for WidgetRepository {
             return Err(AggregateError::Unknow("Parse event from mapper".into()));
         }
         let events: Vec<_> = events.into_iter().map(|x| x.unwrap()).collect();
-        WidgetAggregate::new(widget_id.parse()?)
+        WidgetAggregate::new(widget_id)
             .load_events(events, aggregate_version)
             .map_err(|e| AggregateError::Unknow(e.into()))
     }
