@@ -104,6 +104,9 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
     ) -> Result<(), WidgetServiceError> {
         let mut retry_count = 0;
         loop {
+            if retry_count > MAX_RETRY_COUNT {
+                return Err(WidgetServiceError::AggregateConfilict);
+            }
             let aggregate = self
                 .command
                 .get_widget_aggregate(widget_id.parse()?)
@@ -115,7 +118,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             match self.command.update_widget_aggregate(command_state).await {
                 Ok(_) => break,
                 Err(e) => match e {
-                    AggregateError::Conflict if retry_count.le(&MAX_RETRY_COUNT) => {
+                    AggregateError::Conflict if retry_count.lt(&MAX_RETRY_COUNT) => {
                         retry_count += 1
                     }
                     _ => return Err(e.into()),
@@ -146,7 +149,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
             match self.command.update_widget_aggregate(command_state).await {
                 Ok(_) => break,
                 Err(e) => match e {
-                    AggregateError::Conflict if retry_count.le(&MAX_RETRY_COUNT) => {
+                    AggregateError::Conflict if retry_count.lt(&MAX_RETRY_COUNT) => {
                         retry_count += 1
                     }
                     _ => return Err(e.into()),
