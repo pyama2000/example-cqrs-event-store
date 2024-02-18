@@ -8,9 +8,13 @@ edition = "2021"
 [dependencies]
 kernel = { path = "../kernel" }
 lib = { version = "0.1.0", path = "../lib" }
+mockall = { version = "0.12.1", optional = true }
 thiserror = "1.0.56"
 
 [dev-dependencies]
 kernel = { path = "../kernel", features = ["test", "mockall"] }
 lib = { path = "../lib", features = ["test"] }
 tokio = { version = "1.36.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+
+[features]
+mockall = ["dep:mockall"]

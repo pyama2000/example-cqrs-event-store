@@ -48,6 +48,7 @@ impl From<AggregateError> for WidgetServiceError {
 }
 
 /// 部品 (Widget) のユースケース処理のインターフェイス
+#[cfg_attr(feature = "mockall", mockall::automock)]
 pub trait WidgetService {
     /// 部品を新しく作成する
     fn create_widget(
