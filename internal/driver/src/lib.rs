@@ -140,17 +140,28 @@ async fn shutdown_signal() {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::pin::Pin;
     use std::sync::Arc;
 
-    use app::MockWidgetService;
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode};
-    use lib::Error;
+    use app::{MockWidgetService, WidgetService, WidgetServiceError};
+    use axum::body::{self, Body};
+    use axum::http::header::CONTENT_TYPE;
+    use axum::http::{Method, Request, Response, StatusCode};
+    use lib::{DateTime, Error};
     use tower::ServiceExt;
 
     use crate::Server;
 
+    type AsyncAssertFn<'a> = fn(
+        name: &'a str,
+        response: Response<Body>,
+    ) -> Box<dyn Future<Output = Result<(), Error>> + Send>;
+
     const ADDR: &str = "127.0.0.1:8080";
+    const CONTENT_TYPE_APPLICATION_JSON: &str = "application/json";
+    const WIDGET_NAME: &str = "部品名";
+    const WIDGET_DESCRIPTION: &str = "部品の説明";
 
     /// HealthCheck エンドポイントのテスト
     #[tokio::test]
@@ -162,6 +173,136 @@ mod tests {
             .oneshot(Request::builder().uri("/healthz").body(Body::empty())?)
             .await?;
         assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    /// 部品を作成するエンドポイントのテスト
+    #[tokio::test]
+    async fn test_create_widget() -> Result<(), Error> {
+        struct TestCase<'a, T: WidgetService> {
+            name: &'a str,
+            service: T,
+            request: Request<Body>,
+            assert: AsyncAssertFn<'a>,
+        }
+        let tests = vec![
+            TestCase {
+                name: "リクエストボディの JSON の形式が正しい場合、201 が返る",
+                service: {
+                    let mut service = MockWidgetService::new();
+                    service
+                        .expect_create_widget()
+                        .withf(|name, description| {
+                            name == WIDGET_NAME && description == WIDGET_DESCRIPTION
+                        })
+                        .returning(|_, _| {
+                            Box::pin(async { Ok(DateTime::DT2023_01_01_00_00_00_00.id()) })
+                        });
+                    service
+                },
+                request: Request::builder()
+                    .method(Method::POST)
+                    .uri("/widgets")
+                    .header(CONTENT_TYPE, CONTENT_TYPE_APPLICATION_JSON)
+                    .body(Body::from(
+                        serde_json::json!({
+                            "widget_name": WIDGET_NAME,
+                            "widget_description": WIDGET_DESCRIPTION
+                        })
+                        .to_string(),
+                    ))?,
+                assert: (move |name, response| {
+                    Box::new(async move {
+                        assert_eq!(response.status(), StatusCode::CREATED, "{name}");
+                        let json: serde_json::Value = serde_json::from_slice(
+                            &body::to_bytes(response.into_body(), usize::MAX).await?,
+                        )?;
+                        assert_eq!(
+                            json,
+                            serde_json::json!({
+                                "widget_id": DateTime::DT2023_01_01_00_00_00_00.id()
+                            }),
+                            "{name}"
+                        );
+                        Ok(())
+                    })
+                }),
+            },
+            TestCase {
+                name: "Service から InvalidValue のエラーが返ってきた場合、400 が返る",
+                service: {
+                    let mut service = MockWidgetService::new();
+                    service.expect_create_widget().returning(|_, _| {
+                        Box::pin(async { Err(WidgetServiceError::InvalidValue) })
+                    });
+                    service
+                },
+                request: Request::builder()
+                    .method(Method::POST)
+                    .uri("/widgets")
+                    .header(CONTENT_TYPE, CONTENT_TYPE_APPLICATION_JSON)
+                    .body(Body::from(
+                        serde_json::json!({
+                            "widget_name": "",
+                            "widget_description": ""
+                        })
+                        .to_string(),
+                    ))?,
+                assert: (move |name, response| {
+                    Box::new(async move {
+                        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{name}");
+                        assert!(
+                            body::to_bytes(response.into_body(), usize::MAX)
+                                .await?
+                                .is_empty(),
+                            "{name}"
+                        );
+                        Ok(())
+                    })
+                }),
+            },
+            TestCase {
+                name: "Service から Unknown のエラーが返ってきた場合、500 が返る",
+                service: {
+                    let mut service = MockWidgetService::new();
+                    service.expect_create_widget().returning(|_, _| {
+                        Box::pin(async { Err(WidgetServiceError::Unknow("unknown".into())) })
+                    });
+                    service
+                },
+                request: Request::builder()
+                    .method(Method::POST)
+                    .uri("/widgets")
+                    .header(CONTENT_TYPE, CONTENT_TYPE_APPLICATION_JSON)
+                    .body(Body::from(
+                        serde_json::json!({
+                            "widget_name": "",
+                            "widget_description": ""
+                        })
+                        .to_string(),
+                    ))?,
+                assert: (move |name, response| {
+                    Box::new(async move {
+                        assert_eq!(
+                            response.status(),
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "{name}"
+                        );
+                        assert_eq!(
+                            body::to_bytes(response.into_body(), usize::MAX).await?,
+                            "unknown",
+                            "{name}"
+                        );
+                        Ok(())
+                    })
+                }),
+            },
+        ];
+        for test in tests {
+            let server = Server::new(ADDR, Arc::new(test.service));
+            let response = server.router.oneshot(test.request).await?;
+            Pin::from((test.assert)(test.name, response)).await?;
+        }
         Ok(())
     }
 }
