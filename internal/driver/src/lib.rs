@@ -149,6 +149,7 @@ mod tests {
     use axum::http::header::CONTENT_TYPE;
     use axum::http::{Method, Request, Response, StatusCode};
     use lib::{DateTime, Error};
+    use mockall::predicate;
     use tower::ServiceExt;
 
     use crate::Server;
@@ -192,9 +193,10 @@ mod tests {
                     let mut service = MockWidgetService::new();
                     service
                         .expect_create_widget()
-                        .withf(|name, description| {
-                            name == WIDGET_NAME && description == WIDGET_DESCRIPTION
-                        })
+                        .with(
+                            predicate::eq(WIDGET_NAME.to_string()),
+                            predicate::eq(WIDGET_DESCRIPTION.to_string()),
+                        )
                         .returning(|_, _| {
                             Box::pin(async { Ok(DateTime::DT2023_01_01_00_00_00_00.id()) })
                         });
@@ -322,9 +324,10 @@ mod tests {
                     let mut service = MockWidgetService::new();
                     service
                         .expect_change_widget_name()
-                        .withf(|id, name| {
-                            id == &DateTime::DT2023_01_01_00_00_00_00.id() && name == WIDGET_NAME
-                        })
+                        .with(
+                            predicate::eq(DateTime::DT2023_01_01_00_00_00_00.id()),
+                            predicate::eq(WIDGET_NAME.to_string()),
+                        )
                         .returning(|_, _| Box::pin(async { Ok(()) }));
                     service
                 },
@@ -437,9 +440,10 @@ mod tests {
                     let mut service = MockWidgetService::new();
                     service
                         .expect_change_widget_description()
-                        .withf(|id, description| {
-                            id == &DateTime::DT2023_01_01_00_00_00_00.id() && description == WIDGET_DESCRIPTION
-                        })
+                        .with(
+                            predicate::eq(DateTime::DT2023_01_01_00_00_00_00.id()),
+                            predicate::eq(WIDGET_DESCRIPTION.to_string()),
+                        )
                         .returning(|_, _| Box::pin(async { Ok(()) }));
                     service
                 },
@@ -467,9 +471,11 @@ mod tests {
                 name: "Service から InvalidValue のエラーが返ってきた場合、400 が返る",
                 service: {
                     let mut service = MockWidgetService::new();
-                    service.expect_change_widget_description().returning(|_, _| {
-                        Box::pin(async { Err(WidgetServiceError::InvalidValue) })
-                    });
+                    service
+                        .expect_change_widget_description()
+                        .returning(|_, _| {
+                            Box::pin(async { Err(WidgetServiceError::InvalidValue) })
+                        });
                     service
                 },
                 request: Request::builder()
@@ -493,9 +499,11 @@ mod tests {
                 name: "Service から Unknown のエラーが返ってきた場合、500 が返る",
                 service: {
                     let mut service = MockWidgetService::new();
-                    service.expect_change_widget_description().returning(|_, _| {
-                        Box::pin(async { Err(WidgetServiceError::Unknown("unknown".into())) })
-                    });
+                    service
+                        .expect_change_widget_description()
+                        .returning(|_, _| {
+                            Box::pin(async { Err(WidgetServiceError::Unknown("unknown".into())) })
+                        });
                     service
                 },
                 request: Request::builder()

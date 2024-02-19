@@ -386,6 +386,7 @@ dependencies = [
  "app",
  "axum",
  "lib",
+ "mockall",
  "serde",
  "serde_json",
  "tokio",
