@@ -137,3 +137,31 @@ async fn shutdown_signal() {
     }
     println!("signal received, starting graceful shutdown");
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use app::MockWidgetService;
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use lib::Error;
+    use tower::ServiceExt;
+
+    use crate::Server;
+
+    const ADDR: &str = "127.0.0.1:8080";
+
+    /// HealthCheck エンドポイントのテスト
+    #[tokio::test]
+    async fn test_healthcheck() -> Result<(), Error> {
+        let service = MockWidgetService::new();
+        let server = Server::new(ADDR, Arc::new(service));
+        let response = server
+            .router
+            .oneshot(Request::builder().uri("/healthz").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
+    }
+}
