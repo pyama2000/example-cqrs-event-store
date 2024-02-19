@@ -234,7 +234,7 @@ mod tests {
 
     use kernel::aggregate::WidgetAggregate;
     use kernel::event::WidgetEvent;
-    use lib::Error;
+    use lib::{DateTime, Error};
     use ulid::Ulid;
 
     use crate::model::{
@@ -246,7 +246,6 @@ mod tests {
 
     const WIDGET_NAME: &str = "部品名";
     const WIDGET_DESCRIPTION: &str = "部品説明";
-    const EVENT_ID: &str = "01HPS5PP8444SAZ4XPCB407D0R";
 
     /// CommandState から Aggregate テーブルのモデルに変換するテスト
     #[test]
@@ -275,7 +274,7 @@ mod tests {
                 aggregate_model: WidgetAggregateModel {
                     widget_id: String::new(),
                     last_events: serde_json::to_value(vec![WidgetEventMapper::WidgetCreated {
-                        event_id: EVENT_ID.to_string(),
+                        event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                         payload: WidgetCreatedPayload::V1 {
                             widget_name: WIDGET_NAME.to_string(),
                             widget_description: WIDGET_DESCRIPTION.to_string(),
@@ -311,7 +310,7 @@ mod tests {
                 aggregate_model: WidgetAggregateModel {
                     widget_id: String::new(),
                     last_events: serde_json::to_value(vec![WidgetEventMapper::WidgetNameChanged {
-                        event_id: EVENT_ID.to_string(),
+                        event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                         payload: WidgetNameChangedPayload::V1 {
                             widget_name: WIDGET_NAME.to_string(),
                         },
@@ -344,7 +343,7 @@ mod tests {
                     widget_id: String::new(),
                     last_events: serde_json::to_value(vec![
                         WidgetEventMapper::WidgetDescriptionChanged {
-                            event_id: EVENT_ID.to_string(),
+                            event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                             payload: WidgetDescriptionChangedPayload::V1 {
                                 widget_description: WIDGET_DESCRIPTION.to_string(),
                             },
@@ -392,7 +391,7 @@ mod tests {
             TestCase {
                 name: "V1 の部品作成イベントの Event テーブルのモデルから変換する",
                 event_model: WidgetEventModel {
-                    event_id: EVENT_ID.to_string(),
+                    event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                     event_name: "WidgetCreated".to_string(),
                     payload: serde_json::to_value(WidgetCreatedPayload::V1 {
                         widget_name: WIDGET_NAME.to_string(),
@@ -407,7 +406,11 @@ mod tests {
                         matches!(mapper, WidgetEventMapper::WidgetCreated { .. }),
                         "{name}"
                     );
-                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(
+                        mapper.event_id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "{name}"
+                    );
                     assert_eq!(mapper.event_name(), "WidgetCreated", "{name}");
                     assert_eq!(
                         mapper.to_payload_json_value().unwrap(),
@@ -423,7 +426,7 @@ mod tests {
             TestCase {
                 name: "V1 の部品名変更イベントの Event テーブルのモデルから変換する",
                 event_model: WidgetEventModel {
-                    event_id: EVENT_ID.to_string(),
+                    event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                     event_name: "WidgetNameChanged".to_string(),
                     payload: serde_json::to_value(WidgetNameChangedPayload::V1 {
                         widget_name: WIDGET_NAME.to_string(),
@@ -437,7 +440,11 @@ mod tests {
                         matches!(mapper, WidgetEventMapper::WidgetNameChanged { .. }),
                         "{name}"
                     );
-                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(
+                        mapper.event_id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "{name}"
+                    );
                     assert_eq!(mapper.event_name(), "WidgetNameChanged", "{name}");
                     assert_eq!(
                         mapper.to_payload_json_value().unwrap(),
@@ -449,7 +456,7 @@ mod tests {
             TestCase {
                 name: "V1 の部品の説明変更イベントの Event テーブルのモデルから変換する",
                 event_model: WidgetEventModel {
-                    event_id: EVENT_ID.to_string(),
+                    event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                     event_name: "WidgetDescriptionChanged".to_string(),
                     payload: serde_json::to_value(WidgetDescriptionChangedPayload::V1 {
                         widget_description: WIDGET_DESCRIPTION.to_string(),
@@ -463,7 +470,11 @@ mod tests {
                         matches!(mapper, WidgetEventMapper::WidgetDescriptionChanged { .. }),
                         "{name}"
                     );
-                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(
+                        mapper.event_id(),
+                        DateTime::DT2023_01_01_00_00_00_00.id(),
+                        "{name}"
+                    );
                     assert_eq!(mapper.event_name(), "WidgetDescriptionChanged", "{name}");
                     assert_eq!(
                         mapper.to_payload_json_value().unwrap(),
@@ -493,7 +504,7 @@ mod tests {
             TestCase {
                 name: "部品作成イベントの場合、ペイロードが V1 の部品作成マッパーに変換される",
                 event: WidgetEvent::WidgetCreated {
-                    id: EVENT_ID.parse().unwrap(),
+                    id: DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
                     widget_name: WIDGET_NAME.to_string(),
                     widget_description: WIDGET_DESCRIPTION.to_string(),
                 },
@@ -502,7 +513,7 @@ mod tests {
                         matches!(mapper, WidgetEventMapper::WidgetCreated { .. }),
                         "{name}"
                     );
-                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_id(), DateTime::DT2023_01_01_00_00_00_00.id(), "{name}");
                     assert_eq!(mapper.event_name(), "WidgetCreated", "{name}");
                     assert!(
                         matches!(
@@ -517,7 +528,7 @@ mod tests {
             TestCase {
                 name: "部品名変更イベントの場合、ペイロードが V1 の部品名変更マッパーに変換される",
                 event: WidgetEvent::WidgetNameChanged {
-                    id: EVENT_ID.parse().unwrap(),
+                    id: DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
                     widget_name: WIDGET_NAME.to_string(),
                 },
                 assert: |name: _, mapper: _| {
@@ -525,7 +536,7 @@ mod tests {
                         matches!(mapper, WidgetEventMapper::WidgetNameChanged { .. }),
                         "{name}"
                     );
-                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_id(), DateTime::DT2023_01_01_00_00_00_00.id(), "{name}");
                     assert_eq!(mapper.event_name(), "WidgetNameChanged", "{name}");
                     assert!(
                         matches!(
@@ -541,7 +552,7 @@ mod tests {
                 name:
                     "部品の説明変更イベントの場合、ペイロードが V1 の部品の説明変更マッパーに変換される",
                 event: WidgetEvent::WidgetDescriptionChanged {
-                    id: EVENT_ID.parse().unwrap(),
+                    id: DateTime::DT2023_01_01_00_00_00_00.id().parse().unwrap(),
                     widget_description: WIDGET_DESCRIPTION.to_string(),
                 },
                 assert: |name: _, mapper: _| {
@@ -549,7 +560,7 @@ mod tests {
                         matches!(mapper, WidgetEventMapper::WidgetDescriptionChanged { .. }),
                         "{name}"
                     );
-                    assert_eq!(mapper.event_id(), EVENT_ID, "{name}");
+                    assert_eq!(mapper.event_id(), DateTime::DT2023_01_01_00_00_00_00.id(), "{name}");
                     assert_eq!(mapper.event_name(), "WidgetDescriptionChanged", "{name}");
                     assert!(
                         matches!(
@@ -579,7 +590,7 @@ mod tests {
             TestCase {
                 name: "部品作成イベントのマッパーの場合、V1 の部品作成イベントのペイロードを持つ JSON に変換される",
                 mapper: WidgetEventMapper::WidgetCreated {
-                    event_id: EVENT_ID.to_string(),
+                    event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                     payload: WidgetCreatedPayload::V1 {
                         widget_name: WIDGET_NAME.to_string(),
                         widget_description: WIDGET_DESCRIPTION.to_string(),
@@ -591,7 +602,7 @@ mod tests {
                     assert_eq!(
                         json,
                         serde_json::json!({
-                            "event_id": EVENT_ID,
+                            "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
                             "event_name": "WidgetCreated",
                             "payload": serde_json::json!({
                                 "version": "V1",
@@ -606,7 +617,7 @@ mod tests {
             TestCase {
                 name: "部品名変更イベントのマッパーの場合、V1 の部品名変更イベントのペイロードを持つ JSON に変換される",
                 mapper: WidgetEventMapper::WidgetNameChanged {
-                    event_id: EVENT_ID.to_string(),
+                    event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                     payload: WidgetNameChangedPayload::V1 {
                         widget_name: WIDGET_NAME.to_string(),
                     },
@@ -617,7 +628,7 @@ mod tests {
                     assert_eq!(
                         json,
                         serde_json::json!({
-                            "event_id": EVENT_ID,
+                            "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
                             "event_name": "WidgetNameChanged",
                             "payload": serde_json::json!({
                                 "version": "V1",
@@ -631,7 +642,7 @@ mod tests {
             TestCase {
                 name: "部品の説明変更イベントのマッパーの場合、V1 の部品の説明変更イベントのペイロードを持つ JSON に変換される",
                 mapper: WidgetEventMapper::WidgetDescriptionChanged {
-                    event_id: EVENT_ID.to_string(),
+                    event_id: DateTime::DT2023_01_01_00_00_00_00.id(),
                     payload: WidgetDescriptionChangedPayload::V1 {
                         widget_description: WIDGET_DESCRIPTION.to_string(),
                     },
@@ -642,7 +653,7 @@ mod tests {
                     assert_eq!(
                         json,
                         serde_json::json!({
-                            "event_id": EVENT_ID,
+                            "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
                             "event_name": "WidgetDescriptionChanged",
                             "payload": serde_json::json!({
                                 "version": "V1",
