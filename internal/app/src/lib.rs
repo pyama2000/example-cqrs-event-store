@@ -21,7 +21,7 @@ pub enum WidgetServiceError {
     #[error("Invalid value")]
     InvalidValue,
     #[error("error")]
-    Unknow(#[from] Error),
+    Unknown(#[from] Error),
 }
 
 impl From<ApplyCommandError> for WidgetServiceError {
@@ -31,7 +31,7 @@ impl From<ApplyCommandError> for WidgetServiceError {
                 WidgetServiceError::InvalidValue
             }
             ApplyCommandError::VersionOverflow | ApplyCommandError::AggregationAlreadyCreated => {
-                WidgetServiceError::Unknow(value.into())
+                WidgetServiceError::Unknown(value.into())
             }
         }
     }
@@ -42,7 +42,7 @@ impl From<AggregateError> for WidgetServiceError {
         match value {
             AggregateError::Conflict => Self::AggregateConfilict,
             AggregateError::NotFound => Self::AggregateNotFound,
-            AggregateError::Unknow(e) => Self::Unknow(e),
+            AggregateError::Unknow(e) => Self::Unknown(e),
         }
     }
 }
@@ -192,11 +192,11 @@ mod tests {
             },
             TestCase {
                 error: ApplyCommandError::VersionOverflow,
-                assert: |error| assert!(matches!(error, WidgetServiceError::Unknow(_))),
+                assert: |error| assert!(matches!(error, WidgetServiceError::Unknown(_))),
             },
             TestCase {
                 error: ApplyCommandError::AggregationAlreadyCreated,
-                assert: |error| assert!(matches!(error, WidgetServiceError::Unknow(_))),
+                assert: |error| assert!(matches!(error, WidgetServiceError::Unknown(_))),
             },
         ];
         for test in tests {
@@ -222,7 +222,7 @@ mod tests {
             },
             TestCase {
                 error: AggregateError::Unknow("".into()),
-                assert: |error| assert!(matches!(error, WidgetServiceError::Unknow(_))),
+                assert: |error| assert!(matches!(error, WidgetServiceError::Unknown(_))),
             },
         ];
         for test in tests {
@@ -299,7 +299,7 @@ mod tests {
                 },
                 assert: |name, result| {
                     assert!(
-                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknow(_))),
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknown(_))),
                         "{name}"
                     );
                 },
@@ -426,7 +426,7 @@ mod tests {
                 },
                 assert: |name, result| {
                     assert!(
-                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknow(_))),
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknown(_))),
                         "{name}"
                     );
                 },
@@ -553,7 +553,7 @@ mod tests {
                 },
                 assert: |name, result| {
                     assert!(
-                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknow(_))),
+                        result.is_err_and(|e| matches!(e, WidgetServiceError::Unknown(_))),
                         "{name}"
                     );
                 },
