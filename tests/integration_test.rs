@@ -43,7 +43,12 @@ async fn test_create_widget() -> Result<(), Error> {
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new(ADDR, service.into());
     tokio::spawn(async move { server.run().await.unwrap() });
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    loop {
+        let res = reqwest::get(format!("http://{ADDR}/healthz")).await;
+        if matches!(res, Ok(res) if res.status().is_success()) {
+            break;
+        }
+    }
 
     let client = reqwest::Client::new();
     struct TestCase<'a> {
@@ -123,7 +128,12 @@ async fn test_change_widget_name() -> Result<(), Error> {
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new(ADDR, service.into());
     tokio::spawn(async move { server.run().await.unwrap() });
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    loop {
+        let res = reqwest::get(format!("http://{ADDR}/healthz")).await;
+        if matches!(res, Ok(res) if res.status().is_success()) {
+            break;
+        }
+    }
 
     struct TestCase {
         name: &'static str,
@@ -215,7 +225,12 @@ async fn test_change_widget_description() -> Result<(), Error> {
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new(ADDR, service.into());
     tokio::spawn(async move { server.run().await.unwrap() });
-    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    loop {
+        let res = reqwest::get(format!("http://{ADDR}/healthz")).await;
+        if matches!(res, Ok(res) if res.status().is_success()) {
+            break;
+        }
+    }
 
     struct TestCase {
         name: &'static str,
