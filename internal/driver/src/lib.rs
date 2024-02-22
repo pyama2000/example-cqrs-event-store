@@ -157,7 +157,7 @@ mod tests {
     type AsyncAssertFn<'a> = fn(
         name: &'a str,
         response: Response<Body>,
-    ) -> Box<dyn Future<Output = Result<(), Error>> + Send>;
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
     const ADDR: &str = "127.0.0.1:8080";
     const CONTENT_TYPE_APPLICATION_JSON: &str = "application/json";
@@ -214,7 +214,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(response.status(), StatusCode::CREATED, "{name}");
                         let json: serde_json::Value = serde_json::from_slice(
                             &body::to_bytes(response.into_body(), usize::MAX).await?,
@@ -251,7 +251,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{name}");
                         assert!(
                             body::to_bytes(response.into_body(), usize::MAX)
@@ -284,7 +284,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
@@ -303,7 +303,7 @@ mod tests {
         for test in tests {
             let server = Server::new(ADDR, Arc::new(test.service));
             let response = server.router.oneshot(test.request).await?;
-            Pin::from((test.assert)(test.name, response)).await?;
+            (test.assert)(test.name, response).await?;
         }
         Ok(())
     }
@@ -345,7 +345,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(response.status(), StatusCode::ACCEPTED, "{name}");
                         Ok(())
                     })
@@ -371,7 +371,7 @@ mod tests {
                         serde_json::json!({"widget_name": ""}).to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{name}");
                         Ok(())
                     })
@@ -400,7 +400,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
@@ -419,7 +419,7 @@ mod tests {
         for test in tests {
             let server = Server::new(ADDR, Arc::new(test.service));
             let response = server.router.oneshot(test.request).await?;
-            Pin::from((test.assert)(test.name, response)).await?;
+            (test.assert)(test.name, response).await?;
         }
         Ok(())
     }
@@ -461,7 +461,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(response.status(), StatusCode::ACCEPTED, "{name}");
                         Ok(())
                     })
@@ -489,7 +489,7 @@ mod tests {
                         serde_json::json!({"widget_description": ""}).to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{name}");
                         Ok(())
                     })
@@ -520,7 +520,7 @@ mod tests {
                         .to_string(),
                     ))?,
                 assert: (move |name, response| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
@@ -539,7 +539,7 @@ mod tests {
         for test in tests {
             let server = Server::new(ADDR, Arc::new(test.service));
             let response = server.router.oneshot(test.request).await?;
-            Pin::from((test.assert)(test.name, response)).await?;
+            (test.assert)(test.name, response).await?;
         }
         Ok(())
     }

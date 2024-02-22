@@ -183,7 +183,7 @@ mod tests {
         name: &'a str,
         actual: T,
         pool: ConnectionPool,
-    ) -> Box<dyn Future<Output = Result<(), Error>> + Send>;
+    ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
     const WIDGET_NAME: &str = "部品名";
     const WIDGET_DESCRIPTION: &str = "部品の説明";
@@ -291,7 +291,7 @@ mod tests {
                 },
             )?,
             assert: (move |name, result, pool| {
-                Box::new(async move {
+                Box::pin(async move {
                     assert!(result.is_ok(), "{name}");
                     let models: Vec<WidgetAggregateModel> =
                         sqlx::query_as("SELECT * FROM aggregate")
@@ -334,7 +334,7 @@ mod tests {
         let repository = WidgetRepository::new(pool.clone());
         for test in tests {
             let result = repository.create_widget_aggregate(test.command_state).await;
-            Pin::from((test.assert)(test.name, result, pool.clone())).await?;
+            (test.assert)(test.name, result, pool.clone()).await?;
         }
         Ok(())
     }
@@ -384,7 +384,7 @@ mod tests {
                     0,
                 )],
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
                         let aggregate = result.unwrap();
                         assert_eq!(aggregate.name(), WIDGET_NAME, "{name}");
@@ -411,7 +411,7 @@ mod tests {
                     0,
                 )],
                 assert: (move |name, _, pool| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         let models: Vec<WidgetAggregateModel> =
                             sqlx::query_as("SELECT * FROM aggregate")
                                 .fetch_all(&pool)
@@ -453,7 +453,7 @@ mod tests {
                     0,
                 )],
                 assert: (move |name, _, pool| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         let models: Vec<WidgetEventModel> = sqlx::query_as("SELECT * FROM event")
                             .fetch_all(&pool)
                             .await?;
@@ -507,7 +507,7 @@ mod tests {
                     ),
                 ],
                 assert: (move |name, result, pool| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
                         let aggregate = result.unwrap();
                         assert_eq!(aggregate.name(), WIDGET_NAME, "{name}");
@@ -575,7 +575,7 @@ mod tests {
                     ),
                 ],
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
                         let aggregate = result.unwrap();
                         assert_eq!(aggregate.name(), "部品名v2", "{name}");
@@ -622,7 +622,7 @@ mod tests {
                     ),
                 ],
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
                         let aggregate = result.unwrap();
                         assert_eq!(aggregate.name(), "部品名v3", "{name}");
@@ -637,7 +637,7 @@ mod tests {
                 widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
                 fixtures: Vec::new(),
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(matches!(result, Err(AggregateError::NotFound)), "{name}");
                         Ok(())
                     })
@@ -652,7 +652,7 @@ mod tests {
                     0,
                 )],
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_err(), "{name}");
                         let e = result.err().unwrap();
                         assert_eq!(e.to_string(), LoadEventError::EventsIsEmpty.to_string(), "{name}");
@@ -671,7 +671,7 @@ mod tests {
                 fixture.execute(&pool).await?;
             }
             let result = repository.get_widget_aggregate(test.widget_id).await;
-            Pin::from((test.assert)(test.name, result, pool.clone())).await?;
+            (test.assert)(test.name, result, pool.clone()).await?;
         }
         Ok(())
     }
@@ -709,7 +709,7 @@ mod tests {
                 widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
                 fixtures: Vec::new(),
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
                         let models = result.unwrap();
                         assert!(models.is_empty(), "{name}");
@@ -760,7 +760,7 @@ mod tests {
                     ),
                 ],
                 assert: (move |name, result, _| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
                         let ids: Vec<_> = result
                             .unwrap()
@@ -789,7 +789,7 @@ mod tests {
                 fixture.execute(&pool).await?;
             }
             let result = repository.list_events(&test.widget_id).await;
-            Pin::from((test.assert)(test.name, result, pool.clone())).await?;
+            (test.assert)(test.name, result, pool.clone()).await?;
         }
         Ok(())
     }
@@ -846,7 +846,7 @@ mod tests {
                     })
                 },
                 assert: (move |name, result, pool| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
 
                         let models: Vec<WidgetAggregateModel> =
@@ -911,7 +911,7 @@ mod tests {
                     })
                 },
                 assert: (move |name, result, pool| {
-                    Box::new(async move {
+                    Box::pin(async move {
                         assert!(result.is_ok(), "{name}");
 
                         let models: Vec<WidgetAggregateModel> =
@@ -957,7 +957,7 @@ mod tests {
             let result = repository
                 .update_widget_aggregate((test.command_state_builder)(aggregate)?)
                 .await;
-            Pin::from((test.assert)(test.name, result, pool.clone())).await?;
+            (test.assert)(test.name, result, pool.clone()).await?;
         }
         Ok(())
     }

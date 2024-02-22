@@ -10,8 +10,10 @@ use reqwest::{RequestBuilder, Response, StatusCode};
 use testcontainers::clients::Cli;
 use testcontainers_modules::mysql::Mysql;
 
-type AsyncAssertFn<'a> =
-    fn(name: &'a str, response: Response) -> Box<dyn Future<Output = Result<(), Error>> + Send>;
+type AsyncAssertFn<'a> = fn(
+    name: &'a str,
+    response: Response,
+) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
 const WIDGET_NAME: &str = "部品名";
 const WIDGET_DESCRIPTION: &str = "部品の説明";
@@ -66,7 +68,7 @@ async fn test_create_widget() -> Result<(), Error> {
                 }),
             ),
             assert: (move |name, response: Response| {
-                Box::new(async move {
+                Box::pin(async move {
                     assert_eq!(response.status(), StatusCode::CREATED, "{name}");
                     assert!(
                         response
@@ -87,7 +89,7 @@ async fn test_create_widget() -> Result<(), Error> {
                 .post(format!("http://{ADDR}/widgets"))
                 .json(&serde_json::json!({ "widget_name": "","widget_description": "" })),
             assert: (move |name, response: Response| {
-                Box::new(async move {
+                Box::pin(async move {
                     assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{name}");
                     Ok(())
                 })
@@ -96,7 +98,7 @@ async fn test_create_widget() -> Result<(), Error> {
     ];
     for test in tests {
         let res = test.request.send().await?;
-        Pin::from((test.assert)(test.name, res)).await?;
+        (test.assert)(test.name, res).await?;
     }
     Ok(())
 }
