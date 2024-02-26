@@ -11,6 +11,9 @@ pub enum ApplyCommandError {
     #[error("Invalid description for the widget")]
     InvalidWidgetDescription,
     /// イベントに含まれる部品の説明が不正なフォーマットのときのエラー
+    #[error("Aggregation already created")]
+    AggregationAlreadyCreated,
+    /// イベントに含まれる部品の説明が不正なフォーマットのときのエラー
     #[error("Cannot update Aggregate version")]
     VersionOverflow,
 }
@@ -18,6 +21,9 @@ pub enum ApplyCommandError {
 /// イベントから復元時のエラー
 #[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum LoadEventError {
+    /// イベントが存在しないときのエラー
+    #[error("events is empty")]
+    EventsIsEmpty,
     /// Aggregate 復元時に version が実体と一致しないときのエラー
     #[error("Not match aggregate version")]
     NotMatchVersion,

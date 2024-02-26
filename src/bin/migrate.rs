@@ -1,8 +1,8 @@
-use lib::{database_url, Result};
+use lib::{database_url, Error};
 use sqlx::{Connection, MySqlConnection};
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), Error> {
     let mut pool = MySqlConnection::connect(&database_url()).await?;
     sqlx::query(include_str!(
         "../../migrations/20240210132634_create_aggregate.sql"
