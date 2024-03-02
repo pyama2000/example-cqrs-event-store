@@ -12,3 +12,11 @@ services:
       interval: 10s
       timeout: 20s
       retries: 10
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    container_name: "${OPENOBSERVE_CONTAINER_NAME:-openobserve}"
+    ports:
+      - "${OPENOBSERVE_PORT:-5080}:5080"
+    environment:
+      ZO_ROOT_USER_EMAIL: "${OPENOBSERVE_USERNAME:-root@example.com}"
+      ZO_ROOT_USER_PASSWORD: "${OPENOBSERVE_PASSWORD:-Complexpass#123}"
