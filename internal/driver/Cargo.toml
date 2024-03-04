@@ -12,7 +12,7 @@ lib = { version = "0.1.0", path = "../lib" }
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = "1.0.113"
 tokio = { version = "1.36.0", default-features = false, features = ["signal"] }
-tower-http = { version = "0.5.1", features = ["timeout"] }
+tower-http = { version = "0.5.1", features = ["timeout", "catch-panic"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 

@@ -11,6 +11,7 @@ use lib::Error;
 use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
+use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::timeout::TimeoutLayer;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::layer::SubscriberExt;
@@ -30,6 +31,7 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
     {
         let router = Router::new()
             .route("/healthz", get(|| async { StatusCode::OK }))
+            .route("/panic", get(|| async { panic!("panic!") }))
             .nest(
                 "/widgets",
                 Router::new().route("/", post(create_widget)).nest(
@@ -40,7 +42,8 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                 ),
             )
             .with_state(service)
-            .layer(TimeoutLayer::new(Duration::from_millis(1500)));
+            .layer(TimeoutLayer::new(Duration::from_millis(1500)))
+            .layer(CatchPanicLayer::new());
         Self { addr, router }
     }
 
