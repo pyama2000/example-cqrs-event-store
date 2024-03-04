@@ -9,20 +9,12 @@ use axum::response::IntoResponse;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use lib::Error;
-use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_semantic_conventions::resource::{
-    DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, SERVICE_VERSION,
-};
 use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
@@ -55,40 +47,6 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
     }
 
     pub async fn run(self) -> Result<(), Error> {
-        let tracer = opentelemetry_otlp::new_pipeline()
-            .tracing()
-            .with_trace_config(
-                opentelemetry_sdk::trace::Config::default()
-                    .with_id_generator(opentelemetry_sdk::trace::RandomIdGenerator::default())
-                    .with_resource(opentelemetry_sdk::Resource::from_schema_url(
-                        [
-                            opentelemetry::KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
-                            opentelemetry::KeyValue::new(
-                                SERVICE_VERSION,
-                                env!("CARGO_PKG_VERSION"),
-                            ),
-                            opentelemetry::KeyValue::new(DEPLOYMENT_ENVIRONMENT, "production"),
-                        ],
-                        opentelemetry_semantic_conventions::SCHEMA_URL,
-                    )),
-            )
-            .with_batch_config(opentelemetry_sdk::trace::BatchConfig::default())
-            .with_exporter(
-                opentelemetry_otlp::new_exporter()
-                    .tonic()
-                    // TODO: 外部から値を注入する
-                    .with_endpoint("http://localhost:4317"),
-            )
-            .install_batch(opentelemetry_sdk::runtime::Tokio)?;
-        tracing_subscriber::registry()
-            .with(tracing_subscriber::fmt::layer())
-            .with(
-                EnvFilter::builder()
-                    .with_default_directive(LevelFilter::INFO.into())
-                    .from_env_lossy(),
-            )
-            .with(tracing_opentelemetry::OpenTelemetryLayer::new(tracer))
-            .init();
         let listener = TcpListener::bind(&self.addr).await?;
         tracing::info!("listening: {}", &self.addr);
         axum::serve(listener, self.router)
