@@ -12,6 +12,10 @@ use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
 use tower_http::timeout::TimeoutLayer;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
@@ -41,8 +45,16 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
     }
 
     pub async fn run(self) -> Result<(), Error> {
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::fmt::layer())
+            .with(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::INFO.into())
+                    .from_env_lossy(),
+            )
+            .init();
         let listener = TcpListener::bind(&self.addr).await?;
-        println!("listening: {}", &self.addr);
+        tracing::info!("listening: {}", &self.addr);
         axum::serve(listener, self.router)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
@@ -114,7 +126,8 @@ fn handling_service_error(err: WidgetServiceError) -> impl IntoResponse {
         WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
         WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
         WidgetServiceError::Unknown(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+            tracing::error!(e);
+            StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
 }
@@ -132,10 +145,10 @@ async fn shutdown_signal() {
             .await;
     };
     tokio::select! {
-        _ = ctrl_c => println!("receive ctrl_c signal"),
-        _ = terminate => println!("receive terminate"),
+        _ = ctrl_c => tracing::debug!("receive ctrl_c signal"),
+        _ = terminate => tracing::debug!("receive terminate"),
     }
-    println!("signal received, starting graceful shutdown");
+    tracing::info!("signal received, starting graceful shutdown");
 }
 
 #[cfg(test)]
@@ -290,11 +303,6 @@ mod tests {
                             StatusCode::INTERNAL_SERVER_ERROR,
                             "{name}"
                         );
-                        assert_eq!(
-                            body::to_bytes(response.into_body(), usize::MAX).await?,
-                            "unknown",
-                            "{name}"
-                        );
                         Ok(())
                     })
                 }),
@@ -404,11 +412,6 @@ mod tests {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            "{name}"
-                        );
-                        assert_eq!(
-                            body::to_bytes(response.into_body(), usize::MAX).await?,
-                            "unknown",
                             "{name}"
                         );
                         Ok(())
@@ -524,11 +527,6 @@ mod tests {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            "{name}"
-                        );
-                        assert_eq!(
-                            body::to_bytes(response.into_body(), usize::MAX).await?,
-                            "unknown",
                             "{name}"
                         );
                         Ok(())
