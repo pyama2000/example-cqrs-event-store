@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -32,7 +33,7 @@ pub struct Server<T: ToSocketAddrs> {
 impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
     pub fn new<S>(addr: T, service: Arc<S>) -> Self
     where
-        S: WidgetService + Send + Sync + 'static,
+        S: WidgetService + Debug + Send + Sync + 'static,
     {
         let router = Router::new()
             .route("/healthz", get(|| async { StatusCode::OK }))
@@ -113,7 +114,8 @@ struct ChangeWidgetDescription {
     widget_description: String,
 }
 
-async fn create_widget<S: WidgetService>(
+#[tracing::instrument]
+async fn create_widget<S: WidgetService + Debug>(
     State(service): State<Arc<S>>,
     Json(CreateWidget {
         widget_name,
@@ -130,7 +132,8 @@ async fn create_widget<S: WidgetService>(
     }
 }
 
-async fn change_widget_name<S: WidgetService>(
+#[tracing::instrument]
+async fn change_widget_name<S: WidgetService + Debug>(
     Path(widget_id): Path<String>,
     State(service): State<Arc<S>>,
     Json(ChangeWidgetName { widget_name }): Json<ChangeWidgetName>,
@@ -141,7 +144,8 @@ async fn change_widget_name<S: WidgetService>(
     }
 }
 
-async fn change_widget_description<S: WidgetService>(
+#[tracing::instrument]
+async fn change_widget_description<S: WidgetService + Debug>(
     Path(widget_id): Path<String>,
     State(service): State<Arc<S>>,
     Json(ChangeWidgetDescription { widget_description }): Json<ChangeWidgetDescription>,

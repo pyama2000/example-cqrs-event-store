@@ -15,6 +15,7 @@ dependencies = [
  "testcontainers",
  "testcontainers-modules",
  "tokio",
+ "tracing",
  "ulid",
 ]
 
@@ -82,6 +83,7 @@ dependencies = [
  "mockall",
  "thiserror",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
