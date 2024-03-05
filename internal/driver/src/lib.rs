@@ -3,12 +3,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use app::{WidgetService, WidgetServiceError};
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use axum::extract::{Host, MatchedPath, Path, State};
+use axum::http::{Request, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use lib::Error;
+use opentelemetry_semantic_conventions::trace::{
+    CLIENT_ADDRESS, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE, OTEL_STATUS_CODE,
+};
 use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
@@ -40,7 +43,60 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                 ),
             )
             .with_state(service)
-            .layer(TraceLayer::new_for_http())
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(|req: &Request<_>| {
+                        let address = req.extensions().get::<Host>().map(|Host(address)| address);
+                        let route = req
+                            .extensions()
+                            .get::<MatchedPath>()
+                            .map(MatchedPath::as_str);
+                        let span_name = format!(
+                            "{} {}",
+                            req.method().as_str(),
+                            match route {
+                                Some(x) => x.to_string(),
+                                None => req.uri().to_string(),
+                            }
+                        );
+                        let headers = req.headers();
+                        let user_agent = headers
+                            .get(axum::http::header::USER_AGENT)
+                            .map_or_else(|| "", |v| v.to_str().unwrap_or_default());
+                        let span = tracing::info_span!(
+                            "",
+                            otel.name = %span_name,
+                            otel.status_code = tracing::field::Empty,
+                            url.path = %req.uri().path(),
+                            http.route = tracing::field::Empty,
+                            http.request.method = ?req.method(),
+                            http.request.headers = ?headers,
+                            http.response.status_code = tracing::field::Empty,
+                            network.protocol.version = ?req.version(),
+                            client.address = tracing::field::Empty,
+                            user_agent.original = %user_agent,
+                            "error.type" = tracing::field::Empty,
+                        );
+                        if let Some(route) = route {
+                            span.record(HTTP_ROUTE, route);
+                        }
+                        if let Some(address) = address {
+                            span.record(CLIENT_ADDRESS, address);
+                        }
+                        span
+                    })
+                    .on_response(
+                        |res: &Response, _: std::time::Duration, span: &tracing::Span| {
+                            span.record(HTTP_RESPONSE_STATUS_CODE, res.status().as_str());
+                            if !res.status().is_success() {
+                                span.record("error.type", res.status().as_str());
+                                span.record(OTEL_STATUS_CODE, "ERROR");
+                            } else {
+                                span.record(OTEL_STATUS_CODE, "OK");
+                            }
+                        },
+                    ),
+            )
             .layer(TimeoutLayer::new(Duration::from_millis(1500)))
             .layer(CatchPanicLayer::new());
         Self { addr, router }
