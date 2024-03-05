@@ -16,6 +16,7 @@ use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
 use tower_http::catch_panic::CatchPanicLayer;
+use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
@@ -44,7 +45,7 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
             )
             .with_state(service)
             .layer(TimeoutLayer::new(Duration::from_millis(1500)))
-            .layer(CatchPanicLayer::new())
+            .layer(CatchPanicLayer::custom(handling_panic))
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(|req: &Request<_>| {
@@ -87,15 +88,23 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                         }
                         span
                     })
-                    .on_response(
-                        |res: &Response, _: std::time::Duration, span: &tracing::Span| {
-                            span.record(HTTP_RESPONSE_STATUS_CODE, res.status().as_str());
-                            if !res.status().is_success() {
-                                span.record("error.type", res.status().as_str());
-                                span.record(OTEL_STATUS_CODE, "ERROR");
-                            } else {
-                                span.record(OTEL_STATUS_CODE, "OK");
-                            }
+                    .on_response(|res: &Response, _: Duration, span: &tracing::Span| {
+                        span.record(HTTP_RESPONSE_STATUS_CODE, res.status().as_str());
+                        if !res.status().is_success() {
+                            span.record("error.type", res.status().as_str());
+                            span.record(OTEL_STATUS_CODE, "ERROR");
+                        } else {
+                            span.record(OTEL_STATUS_CODE, "OK");
+                        }
+                    })
+                    .on_failure(
+                        |err: ServerErrorsFailureClass, _: Duration, _: &tracing::Span| {
+                            tracing::event!(
+                                tracing::Level::ERROR,
+                                exception.message = err.to_string(),
+                                "exception.type" = err.to_string(),
+                                "exception"
+                            );
                         },
                     ),
             );
@@ -146,6 +155,31 @@ async fn create_widget<S: WidgetService + Debug>(
     }
 }
 
+/// panic のハンドリングをする
+fn handling_panic(
+    err: Box<dyn std::any::Any + Send + 'static>,
+) -> axum::http::Response<http_body_util::Full<bytes::Bytes>> {
+    let message = if let Some(s) = err.downcast_ref::<String>() {
+        s
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s
+    } else {
+        "unknown"
+    };
+    let backtrace = std::backtrace::Backtrace::force_capture();
+    tracing::error!(
+        exception.escaped = true,
+        exception.message = message,
+        exception.stacktrace = backtrace.to_string(),
+        "exception.type" = "panic",
+        "exception",
+    );
+    axum::http::Response::builder()
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .body(http_body_util::Full::from(String::new()))
+        .unwrap()
+}
+
 #[tracing::instrument]
 async fn change_widget_name<S: WidgetService + Debug>(
     Path(widget_id): Path<String>,
@@ -178,8 +212,13 @@ fn handling_service_error(err: WidgetServiceError) -> impl IntoResponse {
         WidgetServiceError::AggregateNotFound => StatusCode::NOT_FOUND.into_response(),
         WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
         WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
-        WidgetServiceError::Unknown(e) => {
-            tracing::error!(e);
+        WidgetServiceError::Unknown(ref e) => {
+            tracing::error!(
+                exception.escaped = true,
+                exception.message = e,
+                "exception.type" = ?err,
+                "exception"
+            );
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
