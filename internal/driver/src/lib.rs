@@ -43,6 +43,8 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                 ),
             )
             .with_state(service)
+            .layer(TimeoutLayer::new(Duration::from_millis(1500)))
+            .layer(CatchPanicLayer::new())
             .layer(
                 TraceLayer::new_for_http()
                     .make_span_with(|req: &Request<_>| {
@@ -96,9 +98,7 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                             }
                         },
                     ),
-            )
-            .layer(TimeoutLayer::new(Duration::from_millis(1500)))
-            .layer(CatchPanicLayer::new());
+            );
         Self { addr, router }
     }
 
