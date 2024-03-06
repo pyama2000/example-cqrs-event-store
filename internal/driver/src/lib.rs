@@ -241,6 +241,7 @@ async fn shutdown_signal() {
         _ = terminate => tracing::debug!("receive terminate"),
     }
     tracing::info!("signal received, starting graceful shutdown");
+    opentelemetry::global::shutdown_tracer_provider();
 }
 
 #[cfg(test)]
