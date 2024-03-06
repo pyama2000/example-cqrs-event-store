@@ -4,11 +4,12 @@ use std::time::Duration;
 
 use app::{WidgetService, WidgetServiceError};
 use axum::extract::{Host, MatchedPath, Path, State};
-use axum::http::{Request, StatusCode};
+use axum::http::{HeaderMap, HeaderName, Request, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use lib::Error;
+use opentelemetry::propagation::Extractor;
 use opentelemetry_semantic_conventions::trace::{
     CLIENT_ADDRESS, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE, OTEL_STATUS_CODE,
 };
@@ -19,6 +20,7 @@ use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
+use tracing_opentelemetry::OpenTelemetrySpanExt as _;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
@@ -86,6 +88,9 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                         if let Some(address) = address {
                             span.record(CLIENT_ADDRESS, address);
                         }
+                        span.set_parent(opentelemetry::global::get_text_map_propagator(
+                            |propagator| propagator.extract(&HeaderExtractor(req.headers())),
+                        ));
                         span
                     })
                     .on_response(|res: &Response, _: Duration, span: &tracing::Span| {
@@ -155,31 +160,6 @@ async fn create_widget<S: WidgetService + Debug>(
     }
 }
 
-/// panic のハンドリングをする
-fn handling_panic(
-    err: Box<dyn std::any::Any + Send + 'static>,
-) -> axum::http::Response<http_body_util::Full<bytes::Bytes>> {
-    let message = if let Some(s) = err.downcast_ref::<String>() {
-        s
-    } else if let Some(s) = err.downcast_ref::<&str>() {
-        s
-    } else {
-        "unknown"
-    };
-    let backtrace = std::backtrace::Backtrace::force_capture();
-    tracing::error!(
-        exception.escaped = true,
-        exception.message = message,
-        exception.stacktrace = backtrace.to_string(),
-        "exception.type" = "panic",
-        "exception",
-    );
-    axum::http::Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body(http_body_util::Full::from(String::new()))
-        .unwrap()
-}
-
 #[tracing::instrument]
 async fn change_widget_name<S: WidgetService + Debug>(
     Path(widget_id): Path<String>,
@@ -242,6 +222,43 @@ async fn shutdown_signal() {
     }
     tracing::info!("signal received, starting graceful shutdown");
     opentelemetry::global::shutdown_tracer_provider();
+}
+
+struct HeaderExtractor<'a>(&'a HeaderMap);
+
+impl<'a> Extractor for HeaderExtractor<'a> {
+    fn get(&self, key: &str) -> Option<&str> {
+        self.0.get(key).and_then(|value| value.to_str().ok())
+    }
+
+    fn keys(&self) -> Vec<&str> {
+        self.0.keys().map(HeaderName::as_str).collect::<Vec<_>>()
+    }
+}
+
+/// panic のハンドリングをする
+fn handling_panic(
+    err: Box<dyn std::any::Any + Send + 'static>,
+) -> axum::http::Response<http_body_util::Full<bytes::Bytes>> {
+    let message = if let Some(s) = err.downcast_ref::<String>() {
+        s
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s
+    } else {
+        "unknown"
+    };
+    let backtrace = std::backtrace::Backtrace::force_capture();
+    tracing::error!(
+        exception.escaped = true,
+        exception.message = message,
+        exception.stacktrace = backtrace.to_string(),
+        "exception.type" = "panic",
+        "exception",
+    );
+    axum::http::Response::builder()
+        .status(StatusCode::INTERNAL_SERVER_ERROR)
+        .body(http_body_util::Full::from(String::new()))
+        .unwrap()
 }
 
 #[cfg(test)]
