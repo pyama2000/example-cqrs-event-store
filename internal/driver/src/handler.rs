@@ -6,7 +6,9 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
-use opentelemetry_semantic_conventions::trace::{EXCEPTION_ESCAPED, EXCEPTION_MESSAGE, EXCEPTION_TYPE};
+use opentelemetry_semantic_conventions::trace::{
+    EXCEPTION_ESCAPED, EXCEPTION_MESSAGE, EXCEPTION_TYPE,
+};
 use serde::Deserialize;
 use tracing::instrument;
 

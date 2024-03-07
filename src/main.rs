@@ -16,7 +16,7 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    let tracer = opentelemetry_otlp::new_pipeline()
+    let _ = opentelemetry_otlp::new_pipeline()
         .tracing()
         .with_trace_config(
             opentelemetry_sdk::trace::Config::default()
@@ -40,6 +40,24 @@ async fn main() -> Result<(), Error> {
                 .with_endpoint(opentelemetry_endpoint()),
         )
         .install_batch(opentelemetry_sdk::runtime::Tokio)?;
+    let _ = opentelemetry_otlp::new_pipeline()
+        .logging()
+        .with_log_config(opentelemetry_sdk::logs::Config::default().with_resource(
+            opentelemetry_sdk::Resource::from_schema_url(
+                [
+                    opentelemetry::KeyValue::new(SERVICE_NAME, env!("CARGO_PKG_NAME")),
+                    opentelemetry::KeyValue::new(SERVICE_VERSION, env!("CARGO_PKG_VERSION")),
+                    opentelemetry::KeyValue::new(DEPLOYMENT_ENVIRONMENT, application_environment()),
+                ],
+                SCHEMA_URL,
+            ),
+        ))
+        .with_exporter(
+            opentelemetry_otlp::new_exporter()
+                .tonic()
+                .with_endpoint(opentelemetry_endpoint()),
+        )
+        .install_batch(opentelemetry_sdk::runtime::Tokio)?;
     tracing_subscriber::registry()
         .with(
             EnvFilter::builder()
@@ -47,7 +65,11 @@ async fn main() -> Result<(), Error> {
                 .from_env_lossy(),
         )
         .with(tracing_subscriber::fmt::layer())
-        .with(tracing_opentelemetry::OpenTelemetryLayer::new(tracer))
+        .with(
+            opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge::new(
+                &opentelemetry::global::logger_provider(),
+            ),
+        )
         .init();
 
     let pool = connect(&database_url()).await?;
