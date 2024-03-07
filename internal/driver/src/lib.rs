@@ -2,18 +2,17 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
-use app::{WidgetService, WidgetServiceError};
-use axum::extract::{Host, MatchedPath, Path, State};
+use app::WidgetService;
+use axum::extract::{Host, MatchedPath};
 use axum::http::{HeaderMap, HeaderName, Request, StatusCode};
-use axum::response::{IntoResponse, Response};
+use axum::response::Response;
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::Router;
 use lib::Error;
 use opentelemetry::propagation::Extractor;
 use opentelemetry_semantic_conventions::trace::{
     CLIENT_ADDRESS, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE, OTEL_STATUS_CODE,
 };
-use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
 use tower_http::catch_panic::CatchPanicLayer;
@@ -21,6 +20,10 @@ use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
+use self::handler::{change_widget_description, change_widget_name, create_widget, healthz, panic};
+
+mod handler;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
@@ -34,8 +37,8 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
         S: WidgetService + Debug + Send + Sync + 'static,
     {
         let router = Router::new()
-            .route("/healthz", get(|| async { StatusCode::OK }))
-            .route("/panic", get(|| async { panic!("panic!") }))
+            .route("/healthz", get(healthz))
+            .route("/panic", get(panic))
             .nest(
                 "/widgets",
                 Router::new().route("/", post(create_widget)).nest(
@@ -123,84 +126,6 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
             .with_graceful_shutdown(shutdown_signal())
             .await?;
         Ok(())
-    }
-}
-
-#[derive(Deserialize)]
-struct CreateWidget {
-    widget_name: String,
-    widget_description: String,
-}
-
-#[derive(Deserialize)]
-struct ChangeWidgetName {
-    widget_name: String,
-}
-
-#[derive(Deserialize)]
-struct ChangeWidgetDescription {
-    widget_description: String,
-}
-
-#[tracing::instrument]
-async fn create_widget<S: WidgetService + Debug>(
-    State(service): State<Arc<S>>,
-    Json(CreateWidget {
-        widget_name,
-        widget_description,
-    }): Json<CreateWidget>,
-) -> impl IntoResponse {
-    match service.create_widget(widget_name, widget_description).await {
-        Ok(id) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({ "widget_id": id })),
-        )
-            .into_response(),
-        Err(e) => handling_service_error(e).into_response(),
-    }
-}
-
-#[tracing::instrument]
-async fn change_widget_name<S: WidgetService + Debug>(
-    Path(widget_id): Path<String>,
-    State(service): State<Arc<S>>,
-    Json(ChangeWidgetName { widget_name }): Json<ChangeWidgetName>,
-) -> impl IntoResponse {
-    match service.change_widget_name(widget_id, widget_name).await {
-        Ok(_) => StatusCode::ACCEPTED.into_response(),
-        Err(e) => handling_service_error(e).into_response(),
-    }
-}
-
-#[tracing::instrument]
-async fn change_widget_description<S: WidgetService + Debug>(
-    Path(widget_id): Path<String>,
-    State(service): State<Arc<S>>,
-    Json(ChangeWidgetDescription { widget_description }): Json<ChangeWidgetDescription>,
-) -> impl IntoResponse {
-    match service
-        .change_widget_description(widget_id, widget_description)
-        .await
-    {
-        Ok(_) => StatusCode::ACCEPTED.into_response(),
-        Err(e) => handling_service_error(e).into_response(),
-    }
-}
-
-fn handling_service_error(err: WidgetServiceError) -> impl IntoResponse {
-    match err {
-        WidgetServiceError::AggregateNotFound => StatusCode::NOT_FOUND.into_response(),
-        WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
-        WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
-        WidgetServiceError::Unknown(ref e) => {
-            tracing::error!(
-                exception.escaped = true,
-                exception.message = e,
-                "exception.type" = ?err,
-                "exception"
-            );
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
     }
 }
 
