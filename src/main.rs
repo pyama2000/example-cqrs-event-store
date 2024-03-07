@@ -76,5 +76,9 @@ async fn main() -> Result<(), Error> {
     let repository = WidgetRepository::new(pool);
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new("0.0.0.0:8080", service.into());
-    server.run().await
+    server.run().await?;
+
+    opentelemetry::global::shutdown_tracer_provider();
+    opentelemetry::global::shutdown_logger_provider();
+    Ok(())
 }
