@@ -3,27 +3,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use app::WidgetService;
-use axum::extract::{Host, MatchedPath};
-use axum::http::{HeaderMap, HeaderName, Request, StatusCode};
-use axum::response::Response;
 use axum::routing::{get, post};
 use axum::Router;
 use lib::Error;
-use opentelemetry::propagation::Extractor;
-use opentelemetry_semantic_conventions::trace::{
-    CLIENT_ADDRESS, HTTP_RESPONSE_STATUS_CODE, HTTP_ROUTE, OTEL_STATUS_CODE,
-};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
 use tower_http::catch_panic::CatchPanicLayer;
-use tower_http::classify::ServerErrorsFailureClass;
 use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
-use tracing_opentelemetry::OpenTelemetrySpanExt as _;
 
 use self::handler::{change_widget_description, change_widget_name, create_widget, healthz, panic};
+use self::trace::{make_span, record_failure, record_panic, record_request, record_response};
 
 mod handler;
+mod trace;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
@@ -50,71 +43,13 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
             )
             .with_state(service)
             .layer(TimeoutLayer::new(Duration::from_millis(1500)))
-            .layer(CatchPanicLayer::custom(handling_panic))
+            .layer(CatchPanicLayer::custom(record_panic))
             .layer(
                 TraceLayer::new_for_http()
-                    .make_span_with(|req: &Request<_>| {
-                        let address = req.extensions().get::<Host>().map(|Host(address)| address);
-                        let route = req
-                            .extensions()
-                            .get::<MatchedPath>()
-                            .map(MatchedPath::as_str);
-                        let span_name = format!(
-                            "{} {}",
-                            req.method().as_str(),
-                            match route {
-                                Some(x) => x.to_string(),
-                                None => req.uri().to_string(),
-                            }
-                        );
-                        let headers = req.headers();
-                        let user_agent = headers
-                            .get(axum::http::header::USER_AGENT)
-                            .map_or_else(|| "", |v| v.to_str().unwrap_or_default());
-                        let span = tracing::info_span!(
-                            "",
-                            otel.name = %span_name,
-                            otel.status_code = tracing::field::Empty,
-                            url.path = %req.uri().path(),
-                            http.route = tracing::field::Empty,
-                            http.request.method = ?req.method(),
-                            http.request.headers = ?headers,
-                            http.response.status_code = tracing::field::Empty,
-                            network.protocol.version = ?req.version(),
-                            client.address = tracing::field::Empty,
-                            user_agent.original = %user_agent,
-                            "error.type" = tracing::field::Empty,
-                        );
-                        if let Some(route) = route {
-                            span.record(HTTP_ROUTE, route);
-                        }
-                        if let Some(address) = address {
-                            span.record(CLIENT_ADDRESS, address);
-                        }
-                        span.set_parent(opentelemetry::global::get_text_map_propagator(
-                            |propagator| propagator.extract(&HeaderExtractor(req.headers())),
-                        ));
-                        span
-                    })
-                    .on_response(|res: &Response, _: Duration, span: &tracing::Span| {
-                        span.record(HTTP_RESPONSE_STATUS_CODE, res.status().as_str());
-                        if !res.status().is_success() {
-                            span.record("error.type", res.status().as_str());
-                            span.record(OTEL_STATUS_CODE, "ERROR");
-                        } else {
-                            span.record(OTEL_STATUS_CODE, "OK");
-                        }
-                    })
-                    .on_failure(
-                        |err: ServerErrorsFailureClass, _: Duration, _: &tracing::Span| {
-                            tracing::event!(
-                                tracing::Level::ERROR,
-                                exception.message = err.to_string(),
-                                "exception.type" = err.to_string(),
-                                "exception"
-                            );
-                        },
-                    ),
+                    .make_span_with(make_span)
+                    .on_request(record_request)
+                    .on_response(record_response)
+                    .on_failure(record_failure),
             );
         Self { addr, router }
     }
@@ -147,43 +82,6 @@ async fn shutdown_signal() {
     }
     tracing::info!("signal received, starting graceful shutdown");
     opentelemetry::global::shutdown_tracer_provider();
-}
-
-struct HeaderExtractor<'a>(&'a HeaderMap);
-
-impl<'a> Extractor for HeaderExtractor<'a> {
-    fn get(&self, key: &str) -> Option<&str> {
-        self.0.get(key).and_then(|value| value.to_str().ok())
-    }
-
-    fn keys(&self) -> Vec<&str> {
-        self.0.keys().map(HeaderName::as_str).collect::<Vec<_>>()
-    }
-}
-
-/// panic のハンドリングをする
-fn handling_panic(
-    err: Box<dyn std::any::Any + Send + 'static>,
-) -> axum::http::Response<http_body_util::Full<bytes::Bytes>> {
-    let message = if let Some(s) = err.downcast_ref::<String>() {
-        s
-    } else if let Some(s) = err.downcast_ref::<&str>() {
-        s
-    } else {
-        "unknown"
-    };
-    let backtrace = std::backtrace::Backtrace::force_capture();
-    tracing::error!(
-        exception.escaped = true,
-        exception.message = message,
-        exception.stacktrace = backtrace.to_string(),
-        "exception.type" = "panic",
-        "exception",
-    );
-    axum::http::Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body(http_body_util::Full::from(String::new()))
-        .unwrap()
 }
 
 #[cfg(test)]

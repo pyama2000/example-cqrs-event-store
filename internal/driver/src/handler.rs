@@ -6,6 +6,7 @@ use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
+use opentelemetry_semantic_conventions::trace::{EXCEPTION_ESCAPED, EXCEPTION_MESSAGE, EXCEPTION_TYPE};
 use serde::Deserialize;
 use tracing::instrument;
 
@@ -86,10 +87,11 @@ fn handling_service_error(err: WidgetServiceError) -> impl IntoResponse {
         WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
         WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
         WidgetServiceError::Unknown(ref e) => {
-            tracing::error!(
-                exception.escaped = true,
-                exception.message = e,
-                "exception.type" = ?err,
+            tracing::event!(
+                tracing::Level::ERROR,
+                { EXCEPTION_ESCAPED } = true,
+                { EXCEPTION_MESSAGE } = e,
+                { EXCEPTION_TYPE } = ?err,
                 "exception"
             );
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
