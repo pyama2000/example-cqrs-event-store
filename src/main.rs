@@ -39,6 +39,7 @@ fn start_instrument() -> Result<OpenTelemetryGuard, Error> {
         resource::{DEPLOYMENT_ENVIRONMENT, SERVICE_NAME, SERVICE_VERSION},
         SCHEMA_URL,
     };
+    use tracing_opentelemetry::OpenTelemetryLayer;
     use tracing_subscriber::{
         filter::LevelFilter, fmt, layer::SubscriberExt, registry, util::SubscriberInitExt,
         EnvFilter,
@@ -52,7 +53,7 @@ fn start_instrument() -> Result<OpenTelemetryGuard, Error> {
         ],
         SCHEMA_URL,
     );
-    let _ = new_pipeline()
+    let tracer = new_pipeline()
         .tracing()
         .with_trace_config(
             trace::Config::default()
@@ -82,6 +83,7 @@ fn start_instrument() -> Result<OpenTelemetryGuard, Error> {
                 .from_env_lossy(),
         )
         .with(fmt::layer())
+        .with(OpenTelemetryLayer::new(tracer))
         .with(OpenTelemetryTracingBridge::new(&global::logger_provider()))
         .init();
     Ok(OpenTelemetryGuard)
