@@ -23,7 +23,7 @@ services:
   opentelemetry-collector:
     image: otel/opentelemetry-collector:0.88.0
     ports:
-      - "${OPENTELEMETRY_COLLECTOR_GRPC_PORT:-5317}:4317"
+      - "${OPENTELEMETRY_COLLECTOR_GRPC_PORT:-4317}:4317"
     volumes:
       - ./config/opentelemetry-collector/config.yaml:/etc/config.yaml
     environment:
