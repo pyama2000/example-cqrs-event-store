@@ -13,10 +13,10 @@ use tower_http::timeout::TimeoutLayer;
 use tower_http::trace::TraceLayer;
 
 use self::handler::{change_widget_description, change_widget_name, create_widget, healthz, panic};
-use self::trace::{make_span, record_failure, record_panic, record_request, record_response};
+use self::observability::{make_span, record_failure, record_panic, record_request, record_response};
 
 mod handler;
-mod trace;
+mod observability;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
