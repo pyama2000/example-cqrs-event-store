@@ -1,17 +1,22 @@
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 
-use app::{WidgetService, WidgetServiceError};
-use axum::extract::{Path, State};
-use axum::http::StatusCode;
-use axum::response::IntoResponse;
+use app::WidgetService;
 use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::Router;
 use lib::Error;
-use serde::Deserialize;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
+use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::timeout::TimeoutLayer;
+use tower_http::trace::TraceLayer;
+
+use self::handler::{change_widget_description, change_widget_name, create_widget, healthz, panic};
+use self::observability::{make_span, record_failure, record_panic, record_request, record_response};
+
+mod handler;
+mod observability;
 
 #[derive(Debug, Clone)]
 pub struct Server<T: ToSocketAddrs> {
@@ -22,10 +27,11 @@ pub struct Server<T: ToSocketAddrs> {
 impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
     pub fn new<S>(addr: T, service: Arc<S>) -> Self
     where
-        S: WidgetService + Send + Sync + 'static,
+        S: WidgetService + Debug + Send + Sync + 'static,
     {
         let router = Router::new()
-            .route("/healthz", get(|| async { StatusCode::OK }))
+            .route("/healthz", get(healthz))
+            .route("/panic", get(panic))
             .nest(
                 "/widgets",
                 Router::new().route("/", post(create_widget)).nest(
@@ -36,86 +42,25 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
                 ),
             )
             .with_state(service)
-            .layer(TimeoutLayer::new(Duration::from_millis(1500)));
+            .layer(TimeoutLayer::new(Duration::from_millis(1500)))
+            .layer(CatchPanicLayer::custom(record_panic))
+            .layer(
+                TraceLayer::new_for_http()
+                    .make_span_with(make_span)
+                    .on_request(record_request)
+                    .on_response(record_response)
+                    .on_failure(record_failure),
+            );
         Self { addr, router }
     }
 
     pub async fn run(self) -> Result<(), Error> {
         let listener = TcpListener::bind(&self.addr).await?;
-        println!("listening: {}", &self.addr);
+        tracing::info!("listening: {}", &self.addr);
         axum::serve(listener, self.router)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
         Ok(())
-    }
-}
-
-#[derive(Deserialize)]
-struct CreateWidget {
-    widget_name: String,
-    widget_description: String,
-}
-
-#[derive(Deserialize)]
-struct ChangeWidgetName {
-    widget_name: String,
-}
-
-#[derive(Deserialize)]
-struct ChangeWidgetDescription {
-    widget_description: String,
-}
-
-async fn create_widget<S: WidgetService>(
-    State(service): State<Arc<S>>,
-    Json(CreateWidget {
-        widget_name,
-        widget_description,
-    }): Json<CreateWidget>,
-) -> impl IntoResponse {
-    match service.create_widget(widget_name, widget_description).await {
-        Ok(id) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({ "widget_id": id })),
-        )
-            .into_response(),
-        Err(e) => handling_service_error(e).into_response(),
-    }
-}
-
-async fn change_widget_name<S: WidgetService>(
-    Path(widget_id): Path<String>,
-    State(service): State<Arc<S>>,
-    Json(ChangeWidgetName { widget_name }): Json<ChangeWidgetName>,
-) -> impl IntoResponse {
-    match service.change_widget_name(widget_id, widget_name).await {
-        Ok(_) => StatusCode::ACCEPTED.into_response(),
-        Err(e) => handling_service_error(e).into_response(),
-    }
-}
-
-async fn change_widget_description<S: WidgetService>(
-    Path(widget_id): Path<String>,
-    State(service): State<Arc<S>>,
-    Json(ChangeWidgetDescription { widget_description }): Json<ChangeWidgetDescription>,
-) -> impl IntoResponse {
-    match service
-        .change_widget_description(widget_id, widget_description)
-        .await
-    {
-        Ok(_) => StatusCode::ACCEPTED.into_response(),
-        Err(e) => handling_service_error(e).into_response(),
-    }
-}
-
-fn handling_service_error(err: WidgetServiceError) -> impl IntoResponse {
-    match err {
-        WidgetServiceError::AggregateNotFound => StatusCode::NOT_FOUND.into_response(),
-        WidgetServiceError::AggregateConfilict => StatusCode::CONFLICT.into_response(),
-        WidgetServiceError::InvalidValue => StatusCode::BAD_REQUEST.into_response(),
-        WidgetServiceError::Unknown(e) => {
-            (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
-        }
     }
 }
 
@@ -132,10 +77,10 @@ async fn shutdown_signal() {
             .await;
     };
     tokio::select! {
-        _ = ctrl_c => println!("receive ctrl_c signal"),
-        _ = terminate => println!("receive terminate"),
+        _ = ctrl_c => tracing::debug!("receive ctrl_c signal"),
+        _ = terminate => tracing::debug!("receive terminate"),
     }
-    println!("signal received, starting graceful shutdown");
+    tracing::info!("signal received, starting graceful shutdown");
 }
 
 #[cfg(test)]
@@ -290,11 +235,6 @@ mod tests {
                             StatusCode::INTERNAL_SERVER_ERROR,
                             "{name}"
                         );
-                        assert_eq!(
-                            body::to_bytes(response.into_body(), usize::MAX).await?,
-                            "unknown",
-                            "{name}"
-                        );
                         Ok(())
                     })
                 }),
@@ -404,11 +344,6 @@ mod tests {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            "{name}"
-                        );
-                        assert_eq!(
-                            body::to_bytes(response.into_body(), usize::MAX).await?,
-                            "unknown",
                             "{name}"
                         );
                         Ok(())
@@ -524,11 +459,6 @@ mod tests {
                         assert_eq!(
                             response.status(),
                             StatusCode::INTERNAL_SERVER_ERROR,
-                            "{name}"
-                        );
-                        assert_eq!(
-                            body::to_bytes(response.into_body(), usize::MAX).await?,
-                            "unknown",
                             "{name}"
                         );
                         Ok(())

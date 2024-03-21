@@ -1,3 +1,4 @@
+use std::fmt::Debug;
 use std::future::Future;
 
 use kernel::aggregate::WidgetAggregate;
@@ -81,7 +82,8 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
     }
 }
 
-impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
+impl<C: CommandProcessor + Debug + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
+    #[tracing::instrument]
     async fn create_widget(
         &self,
         widget_name: String,
@@ -98,6 +100,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         Ok(widget_id)
     }
 
+    #[tracing::instrument]
     async fn change_widget_name(
         &self,
         widget_id: String,
@@ -129,6 +132,7 @@ impl<C: CommandProcessor + Send + Sync + 'static> WidgetService for WidgetServic
         Ok(())
     }
 
+    #[tracing::instrument]
     async fn change_widget_description(
         &self,
         widget_id: String,

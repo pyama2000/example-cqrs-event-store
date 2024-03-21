@@ -12,8 +12,15 @@ app = { version = "0.1.0", path = "internal/app" }
 driver = { version = "0.1.0", path = "internal/driver" }
 kernel = { version = "0.1.0", path = "internal/kernel" }
 lib = { version = "0.1.0", path = "internal/lib" }
+opentelemetry = "0.21.0"
+opentelemetry-appender-tracing = "0.2.0"
+opentelemetry-otlp = { version = "0.14.0", features = ["logs"] }
+opentelemetry-semantic-conventions = "0.13.0"
+opentelemetry_sdk = { version = "0.21.0", features = ["rt-tokio"] }
 sqlx = { version = "0.7.3", features = ["runtime-tokio", "mysql"], optional = true }
 tokio = { version = "1.36.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+tracing-opentelemetry = "0.22.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [workspace]
 members = [ "internal/adapter", "internal/app","internal/driver", "internal/kernel", "internal/lib"]

@@ -10,6 +10,20 @@ pub fn database_url() -> String {
     )
 }
 
+pub fn application_environment() -> String {
+    option_env!("APPLICATION_ENVIRONMENT")
+        .unwrap_or("development")
+        .to_string()
+}
+
+pub fn opentelemetry_endpoint() -> String {
+    format!(
+        "http://{}:{}",
+        option_env!("OPENTELEMETRY_HOST").unwrap_or("127.0.0.1"),
+        option_env!("OPENTELEMETRY_PORT").unwrap_or("4317")
+    )
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg(feature = "test")]
 pub enum DateTime {
