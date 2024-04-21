@@ -10,14 +10,13 @@ use opentelemetry_semantic_conventions::trace::{
     EXCEPTION_ESCAPED, EXCEPTION_MESSAGE, EXCEPTION_TYPE,
 };
 use serde::Deserialize;
-use tracing::instrument;
 
-#[instrument]
+#[tracing::instrument(ret)]
 pub async fn healthz() -> StatusCode {
     StatusCode::OK
 }
 
-#[instrument]
+#[tracing::instrument(ret)]
 pub async fn panic() -> StatusCode {
     panic!("panic handler");
 }
@@ -28,7 +27,7 @@ pub struct CreateWidget {
     widget_description: String,
 }
 
-#[instrument]
+#[tracing::instrument(ret)]
 pub async fn create_widget<S: WidgetService + Debug>(
     State(service): State<Arc<S>>,
     Json(CreateWidget {
@@ -51,7 +50,7 @@ pub struct ChangeWidgetName {
     widget_name: String,
 }
 
-#[instrument]
+#[tracing::instrument(ret)]
 pub async fn change_widget_name<S: WidgetService + Debug>(
     Path(widget_id): Path<String>,
     State(service): State<Arc<S>>,
@@ -68,7 +67,7 @@ pub struct ChangeWidgetDescription {
     widget_description: String,
 }
 
-#[instrument]
+#[tracing::instrument(ret)]
 pub async fn change_widget_description<S: WidgetService + Debug>(
     Path(widget_id): Path<String>,
     State(service): State<Arc<S>>,

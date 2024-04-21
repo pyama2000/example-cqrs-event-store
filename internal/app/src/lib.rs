@@ -83,7 +83,7 @@ impl<C: CommandProcessor> WidgetServiceImpl<C> {
 }
 
 impl<C: CommandProcessor + Debug + Send + Sync + 'static> WidgetService for WidgetServiceImpl<C> {
-    #[tracing::instrument]
+    #[tracing::instrument(ret, err)]
     async fn create_widget(
         &self,
         widget_name: String,
@@ -100,7 +100,7 @@ impl<C: CommandProcessor + Debug + Send + Sync + 'static> WidgetService for Widg
         Ok(widget_id)
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(ret, err)]
     async fn change_widget_name(
         &self,
         widget_id: String,
@@ -132,7 +132,7 @@ impl<C: CommandProcessor + Debug + Send + Sync + 'static> WidgetService for Widg
         Ok(())
     }
 
-    #[tracing::instrument]
+    #[tracing::instrument(ret, err)]
     async fn change_widget_description(
         &self,
         widget_id: String,
