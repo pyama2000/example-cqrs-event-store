@@ -12,6 +12,7 @@ const QUERY_INSERT_AGGREGATE: &str =
 const QUERY_INSERT_EVENT: &str =
     "INSERT INTO event (event_id, widget_id, event_name, payload) VALUES (?, ?, ?, ?)";
 
+#[derive(Debug)]
 pub struct WidgetRepository {
     pool: ConnectionPool,
 }
@@ -35,6 +36,7 @@ impl WidgetRepository {
 }
 
 impl CommandProcessor for WidgetRepository {
+    #[tracing::instrument(ret, err)]
     async fn create_widget_aggregate(
         &self,
         command_state: kernel::aggregate::WidgetCommandState,
@@ -58,6 +60,7 @@ impl CommandProcessor for WidgetRepository {
         Ok(())
     }
 
+    #[tracing::instrument(ret, err)]
     async fn get_widget_aggregate(
         &self,
         widget_id: kernel::Id<kernel::aggregate::WidgetAggregate>,
@@ -121,6 +124,7 @@ impl CommandProcessor for WidgetRepository {
             .map_err(|e| AggregateError::Unknow(e.into()))
     }
 
+    #[tracing::instrument(ret, err)]
     async fn update_widget_aggregate(
         &self,
         command_state: kernel::aggregate::WidgetCommandState,
