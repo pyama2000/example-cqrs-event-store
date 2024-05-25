@@ -1,1 +1,7 @@
+# Rust
 /target
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
