@@ -32,8 +32,6 @@ services:
     depends_on:
       terraform-setup:
         condition: service_completed_successfully
-      motoserver:
-        condition: service_started
   terraform-apply:
     image: hashicorp/terraform:1.8.4
     working_dir: /terraform
@@ -43,6 +41,8 @@ services:
       - /terraform/state
     command: ["apply", "-auto-approve"]
     depends_on:
+      motoserver:
+        condition: service_started
       terraform-init:
         condition: service_completed_successfully
   openobserve:
