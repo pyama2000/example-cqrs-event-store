@@ -12,6 +12,39 @@ services:
       interval: 10s
       timeout: 20s
       retries: 10
+  motoserver:
+    image: motoserver/moto@sha256:45a2f0984c27f81052766440081043f03325be1206832e60625d8fffa986d164
+    ports:
+      - "${MOTOSERVER_PORT:-5000}:5000"
+  # ./terraform ディレクトリをバインドマウントして名前付きボリューム (terraform-volume) にコピーする
+  terraform-setup:
+    image: bash:latest
+    volumes:
+      - ./terraform:/terraform-origin
+      - terraform-volume:/terraform
+    command: ["cp", "-rT", "/terraform-origin", "/terraform"]
+  terraform-init:
+    image: hashicorp/terraform:1.8.4
+    working_dir: /terraform
+    volumes:
+      - terraform-volume:/terraform
+    command: ["init"]
+    depends_on:
+      terraform-setup:
+        condition: service_completed_successfully
+  terraform-apply:
+    image: hashicorp/terraform:1.8.4
+    working_dir: /terraform
+    network_mode: "host"
+    volumes:
+      - terraform-volume:/terraform
+      - /terraform/state
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      motoserver:
+        condition: service_started
+      terraform-init:
+        condition: service_completed_successfully
   openobserve:
     image: public.ecr.aws/zinclabs/openobserve:v0.9.1
     container_name: "${OPENOBSERVE_CONTAINER_NAME:-openobserve}"
@@ -31,3 +64,6 @@ services:
       OPENOBSERVE_PORT: "5081"
       OPENOBSERVE_AUTH: "cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjM=" # `echo -n 'root@example.com:Complexpass#123' | base64`
     command: ["--config=/etc/config.yaml"]
+volumes:
+  terraform-volume:
+    name: terraform

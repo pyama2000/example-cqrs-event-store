@@ -13,3 +13,4 @@ packages:
 - name: mitsuhiko/rye@0.25.0
 - name: astral-sh/uv@0.1.5
 - name: grafana/k6@v0.49.0
+- name: tfutils/tfenv@v3.0.0
