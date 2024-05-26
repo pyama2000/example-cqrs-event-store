@@ -1,4 +1,4 @@
-use adapter::persistence::connect;
+use adapter::persistence::{client, connect};
 use adapter::repository::WidgetRepository;
 use app::WidgetServiceImpl;
 use driver::Server;
@@ -9,7 +9,8 @@ async fn main() -> Result<(), Error> {
     let _guard = start_instrument()?;
 
     let pool = connect(&database_url()).await?;
-    let repository = WidgetRepository::new(pool);
+    let client = client().await;
+    let repository = WidgetRepository::new(pool, client);
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new("0.0.0.0:8080", service.into());
     server.run().await?;

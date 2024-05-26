@@ -5,7 +5,7 @@ use adapter::persistence::connect;
 use adapter::repository::WidgetRepository;
 use app::WidgetServiceImpl;
 use driver::Server;
-use lib::Error;
+use lib::{test_client, Error};
 use reqwest::{RequestBuilder, Response, StatusCode};
 use testcontainers::clients::Cli;
 use testcontainers_modules::mysql::Mysql;
@@ -41,7 +41,7 @@ async fn test_create_widget() -> Result<(), Error> {
     .execute(&pool)
     .await?;
 
-    let repository = WidgetRepository::new(pool);
+    let repository = WidgetRepository::new(pool, test_client().await);
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new(ADDR, service.into());
     tokio::spawn(async move { server.run().await.unwrap() });
@@ -126,7 +126,7 @@ async fn test_change_widget_name() -> Result<(), Error> {
     .execute(&pool)
     .await?;
 
-    let repository = WidgetRepository::new(pool);
+    let repository = WidgetRepository::new(pool, test_client().await);
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new(ADDR, service.into());
     tokio::spawn(async move { server.run().await.unwrap() });
@@ -223,7 +223,7 @@ async fn test_change_widget_description() -> Result<(), Error> {
     .execute(&pool)
     .await?;
 
-    let repository = WidgetRepository::new(pool);
+    let repository = WidgetRepository::new(pool, test_client().await);
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new(ADDR, service.into());
     tokio::spawn(async move { server.run().await.unwrap() });

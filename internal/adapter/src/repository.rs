@@ -5,7 +5,7 @@ use kernel::processor::CommandProcessor;
 use lib::Error;
 
 use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel};
-use crate::persistence::ConnectionPool;
+use crate::persistence::{ConnectionPool, DbClient};
 
 const QUERY_INSERT_AGGREGATE: &str =
     "INSERT INTO aggregate (widget_id, last_events, aggregate_version) VALUES (?, ?, ?)";
@@ -15,11 +15,12 @@ const QUERY_INSERT_EVENT: &str =
 #[derive(Debug)]
 pub struct WidgetRepository {
     pool: ConnectionPool,
+    client: DbClient,
 }
 
 impl WidgetRepository {
-    pub fn new(pool: ConnectionPool) -> Self {
-        Self { pool }
+    pub fn new(pool: ConnectionPool, client: DbClient) -> Self {
+        Self { pool, client }
     }
 
     /// 時系列順にイベントを取得する
@@ -173,7 +174,7 @@ mod tests {
     use kernel::error::{AggregateError, ApplyCommandError, LoadEventError};
     use kernel::processor::CommandProcessor;
     use kernel::Id;
-    use lib::{DateTime, Error};
+    use lib::{test_client, DateTime, Error};
     use testcontainers::clients::Cli;
     use testcontainers_modules::mysql::Mysql;
 
@@ -335,7 +336,7 @@ mod tests {
                 })
             }),
         }];
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(pool.clone(), test_client().await);
         for test in tests {
             let result = repository.create_widget_aggregate(test.command_state).await;
             (test.assert)(test.name, result, pool.clone()).await?;
@@ -665,7 +666,7 @@ mod tests {
                 }),
             },
         ];
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(pool.clone(), test_client().await);
         for test in tests {
             sqlx::query("TRUNCATE TABLE aggregate")
                 .execute(&pool)
@@ -786,7 +787,7 @@ mod tests {
                 }),
             },
         ];
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(pool.clone(), test_client().await);
         for test in tests {
             sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
             for fixture in test.fixtures {
@@ -948,7 +949,7 @@ mod tests {
                 }),
             },
         ];
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(pool.clone(), test_client().await);
         for test in tests {
             sqlx::query("TRUNCATE TABLE aggregate")
                 .execute(&pool)
@@ -989,7 +990,7 @@ mod tests {
         .execute(&pool)
         .await?;
 
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(pool.clone(), test_client().await);
         let widget_id: Id<WidgetAggregate> = DateTime::DT2023_01_01_00_00_00_00.id().parse()?;
         let fixture = Fixture::aggregate(
             widget_id.to_string(),
