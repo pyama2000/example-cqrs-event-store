@@ -45,7 +45,7 @@ impl TryFrom<WidgetCommandState> for WidgetAggregateModel {
 }
 
 /// Event テーブルのモデル
-#[derive(FromRow, Debug, Clone, PartialEq, Eq)]
+#[derive(FromRow, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WidgetEventModel {
     event_id: String,
     event_name: String,

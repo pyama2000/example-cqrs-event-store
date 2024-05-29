@@ -1,3 +1,4 @@
+use aws_sdk_dynamodb::types::AttributeValue;
 use kernel::aggregate::WidgetAggregate;
 use kernel::error::AggregateError;
 use kernel::event::WidgetEvent;
@@ -28,11 +29,31 @@ impl WidgetRepository {
         &self,
         widget_id: &kernel::Id<WidgetAggregate>,
     ) -> Result<Vec<WidgetEventModel>, AggregateError> {
-        sqlx::query_as("SELECT * FROM event WHERE widget_id = ? ORDER BY event_id ASC")
-            .bind(widget_id.to_string())
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))
+        let results: Vec<_> = self
+            .client
+            .query()
+            .table_name("EventStore")
+            .consistent_read(true)
+            .key_condition_expression("AggregateID = :widget_id")
+            .expression_attribute_values("widget_id", AttributeValue::S(widget_id.to_string()))
+            .into_paginator()
+            .send()
+            .collect()
+            .await;
+        if results.iter().any(Result::is_err) {
+            let errs: Vec<_> = results
+                .into_iter()
+                .filter(|x| x.is_err())
+                .map(|x| x.unwrap_err().to_string())
+                .collect();
+            return Err(AggregateError::Unknow(errs.join(",\n").into()));
+        }
+        let items: Vec<_> = results
+            .into_iter()
+            .map(Result::unwrap)
+            .flat_map(|x| x.items().to_vec())
+            .collect();
+        serde_dynamo::from_items(items).map_err(|e| AggregateError::Unknow(e.into()))
     }
 }
 
