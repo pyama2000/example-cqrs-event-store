@@ -8,8 +8,6 @@ use lib::Error;
 use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel};
 use crate::persistence::{ConnectionPool, DbClient};
 
-const QUERY_INSERT_AGGREGATE: &str =
-    "INSERT INTO aggregate (widget_id, last_events, aggregate_version) VALUES (?, ?, ?)";
 const QUERY_INSERT_EVENT: &str =
     "INSERT INTO event (event_id, widget_id, event_name, payload) VALUES (?, ?, ?, ?)";
 
@@ -64,19 +62,13 @@ impl CommandProcessor for WidgetRepository {
         command_state: kernel::aggregate::WidgetCommandState,
     ) -> Result<(), AggregateError> {
         let model: WidgetAggregateModel = command_state.try_into()?;
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
-        sqlx::query(QUERY_INSERT_AGGREGATE)
-            .bind(model.widget_id())
-            .bind(model.last_events())
-            .bind(model.aggregate_version())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
-        tx.commit()
+        self.client
+            .put_item()
+            .table_name("Aggregate")
+            .set_item(Some(
+                serde_dynamo::to_item(model).map_err(|e| AggregateError::Unknow(e.into()))?,
+            ))
+            .send()
             .await
             .map_err(|e| AggregateError::Unknow(e.into()))?;
         Ok(())

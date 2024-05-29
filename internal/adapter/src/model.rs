@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 /// Aggregate テーブルのモデル
-#[derive(FromRow, Debug, Clone, PartialEq, Eq)]
+#[derive(FromRow, Serialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WidgetAggregateModel {
     widget_id: String,
     last_events: serde_json::Value,
