@@ -1,3 +1,4 @@
+use aws_sdk_dynamodb::operation::get_item::GetItemError;
 use aws_sdk_dynamodb::types::AttributeValue;
 use kernel::aggregate::WidgetAggregate;
 use kernel::error::AggregateError;
@@ -7,9 +8,6 @@ use lib::Error;
 
 use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel};
 use crate::persistence::{ConnectionPool, DbClient};
-
-const QUERY_INSERT_EVENT: &str =
-    "INSERT INTO event (event_id, widget_id, event_name, payload) VALUES (?, ?, ?, ?)";
 
 #[derive(Debug)]
 pub struct WidgetRepository {
@@ -80,46 +78,42 @@ impl CommandProcessor for WidgetRepository {
         widget_id: kernel::Id<kernel::aggregate::WidgetAggregate>,
     ) -> Result<kernel::aggregate::WidgetAggregate, AggregateError> {
         // Aggregate テーブルから関連する集約項目を取得する
-        let model: WidgetAggregateModel =
-            match sqlx::query_as("SELECT * FROM aggregate WHERE widget_id = ?")
-                .bind(widget_id.to_string())
-                .fetch_one(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => match e {
-                    sqlx::Error::RowNotFound => return Err(AggregateError::NotFound),
-                    _ => return Err(AggregateError::Unknow(e.into())),
-                },
-            };
+        let model: WidgetAggregateModel = match self
+            .client
+            .get_item()
+            .table_name("Aggregate")
+            .key("ID", AttributeValue::S(widget_id.to_string()))
+            .send()
+            .await
+        {
+            Ok(x) => {
+                let item = x
+                    .item()
+                    .ok_or_else(|| AggregateError::Unknow("item is None".into()))?;
+                serde_dynamo::from_item(item.clone())
+                    .map_err(|e| AggregateError::Unknow(e.into()))?
+            }
+            Err(err) => match err.into_service_error() {
+                GetItemError::ResourceNotFoundException(_) => return Err(AggregateError::NotFound),
+                e => return Err(AggregateError::Unknow(e.into())),
+            },
+        };
         // ビジネスロジックの適用の前にイベントと集約のデータが正しい状態にあることを保証するために
         // 前回集約が保存された際に作成されたイベントを Event テーブルに個々の項目として永続化する
         let aggregate_version = model.aggregate_version();
         let models: Vec<WidgetEventModel> = model.try_into()?;
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
         for model in models {
-            let result = sqlx::query(QUERY_INSERT_EVENT)
-                .bind(model.event_id())
-                .bind(&widget_id.to_string())
-                .bind(model.event_name())
-                .bind(model.payload())
-                .execute(&mut *tx)
-                .await;
-            if let Err(e) = result {
-                match e.as_database_error() {
-                    // NOTE: イベントが既に存在してもイベントは変更不可能なのでエラーを無視する
-                    Some(e) if e.is_unique_violation() => continue,
-                    _ => return Err(AggregateError::Unknow(e.into())),
-                }
-            }
+            self.client
+                .put_item()
+                .table_name("EventStore")
+                .set_item(Some(
+                    serde_dynamo::to_item(model).map_err(|e| AggregateError::Unknow(e.into()))?,
+                ))
+                .condition_expression("attribute_not_exists(ID)")
+                .send()
+                .await
+                .map_err(|e| AggregateError::Unknow(e.into()))?;
         }
-        tx.commit()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
         // 関連するすべてのイベントを読み込んで集約の状態を復元する
         let models: Vec<WidgetEventModel> = self.list_events(&widget_id).await?;
         let mappers: Vec<Result<WidgetEventMapper, Error>> =
