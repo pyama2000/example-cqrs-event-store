@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use aws_sdk_dynamodb::operation::get_item::GetItemError;
 use aws_sdk_dynamodb::types::AttributeValue;
 use kernel::aggregate::WidgetAggregate;
@@ -138,33 +140,36 @@ impl CommandProcessor for WidgetRepository {
         command_state: kernel::aggregate::WidgetCommandState,
     ) -> Result<(), AggregateError> {
         let model: WidgetAggregateModel = command_state.try_into()?;
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
-        let result = sqlx::query(
-            "
-            UPDATE
-                aggregate
-            SET
-                last_events = ?, aggregate_version = ?
-            WHERE
-                widget_id = ? AND aggregate_version = ?
-            ",
-        )
-        .bind(model.last_events())
-        .bind(model.aggregate_version())
-        .bind(model.widget_id())
-        .bind(model.aggregate_version().saturating_sub(1))
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| AggregateError::Unknow(e.into()))?;
-        // NOTE: 同時接続で既に Aggregate が更新されていた場合はエラーを返す
-        if result.rows_affected() == 0 {
-            return Err(AggregateError::Conflict);
-        }
-        tx.commit()
+        self.client
+            .update_item()
+            .table_name("Aggregate")
+            .key(
+                "ID",
+                serde_dynamo::to_attribute_value(model.widget_id())
+                    .map_err(|e| AggregateError::Unknow(e.into()))?,
+            )
+            .set_expression_attribute_values(Some(HashMap::from([
+                (
+                    "NewLastEvents".to_string(),
+                    serde_dynamo::to_attribute_value(model.last_events())
+                        .map_err(|e| AggregateError::Unknow(e.into()))?,
+                ),
+                (
+                    "NewAggregateVersion".to_string(),
+                    serde_dynamo::to_attribute_value(model.aggregate_version())
+                        .map_err(|e| AggregateError::Unknow(e.into()))?,
+                ),
+                (
+                    "CurrentAggregateVersion".to_string(),
+                    serde_dynamo::to_attribute_value(model.aggregate_version().saturating_sub(1))
+                        .map_err(|e| AggregateError::Unknow(e.into()))?,
+                ),
+            ])))
+            .update_expression(
+                "SET LastEvents = :NewLastEvents,AggregateVersion = :NewAggregateVersion",
+            )
+            .condition_expression("AggregateVersion = :CurrentAggregateVersion")
+            .send()
             .await
             .map_err(|e| AggregateError::Unknow(e.into()))?;
         Ok(())
