@@ -5,10 +5,13 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 /// Aggregate テーブルのモデル
-#[derive(FromRow, Debug, Clone, PartialEq, Eq)]
+#[derive(FromRow, Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WidgetAggregateModel {
+    #[serde(rename = "ID")]
     widget_id: String,
+    #[serde(rename = "LastEvents")]
     last_events: serde_json::Value,
+    #[serde(rename = "AggregateVersion")]
     aggregate_version: u64,
 }
 
@@ -45,25 +48,11 @@ impl TryFrom<WidgetCommandState> for WidgetAggregateModel {
 }
 
 /// Event テーブルのモデル
-#[derive(FromRow, Debug, Clone, PartialEq, Eq)]
+#[derive(FromRow, Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WidgetEventModel {
     event_id: String,
     event_name: String,
     payload: serde_json::Value,
-}
-
-impl WidgetEventModel {
-    pub(crate) fn event_id(&self) -> &str {
-        &self.event_id
-    }
-
-    pub(crate) fn event_name(&self) -> &str {
-        &self.event_name
-    }
-
-    pub(crate) fn payload(&self) -> &serde_json::Value {
-        &self.payload
-    }
 }
 
 impl TryFrom<WidgetAggregateModel> for Vec<WidgetEventModel> {

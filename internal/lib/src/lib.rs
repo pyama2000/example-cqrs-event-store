@@ -64,3 +64,13 @@ impl DateTime {
         .to_string()
     }
 }
+
+#[cfg(feature = "test")]
+pub async fn test_client(port: u16) -> aws_sdk_dynamodb::Client {
+    let config = aws_config::defaults(aws_config::BehaviorVersion::v2024_03_28())
+        .endpoint_url(format!("http://localhost:{port}"))
+        .test_credentials()
+        .load()
+        .await;
+    aws_sdk_dynamodb::Client::new(&config)
+}

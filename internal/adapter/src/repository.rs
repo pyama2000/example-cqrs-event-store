@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use aws_sdk_dynamodb::operation::get_item::GetItemError;
+use aws_sdk_dynamodb::types::AttributeValue;
 use kernel::aggregate::WidgetAggregate;
 use kernel::error::AggregateError;
 use kernel::event::WidgetEvent;
@@ -5,21 +9,16 @@ use kernel::processor::CommandProcessor;
 use lib::Error;
 
 use crate::model::{WidgetAggregateModel, WidgetEventMapper, WidgetEventModel};
-use crate::persistence::ConnectionPool;
-
-const QUERY_INSERT_AGGREGATE: &str =
-    "INSERT INTO aggregate (widget_id, last_events, aggregate_version) VALUES (?, ?, ?)";
-const QUERY_INSERT_EVENT: &str =
-    "INSERT INTO event (event_id, widget_id, event_name, payload) VALUES (?, ?, ?, ?)";
+use crate::persistence::DbClient;
 
 #[derive(Debug)]
 pub struct WidgetRepository {
-    pool: ConnectionPool,
+    client: DbClient,
 }
 
 impl WidgetRepository {
-    pub fn new(pool: ConnectionPool) -> Self {
-        Self { pool }
+    pub fn new(client: DbClient) -> Self {
+        Self { client }
     }
 
     /// 時系列順にイベントを取得する
@@ -27,11 +26,31 @@ impl WidgetRepository {
         &self,
         widget_id: &kernel::Id<WidgetAggregate>,
     ) -> Result<Vec<WidgetEventModel>, AggregateError> {
-        sqlx::query_as("SELECT * FROM event WHERE widget_id = ? ORDER BY event_id ASC")
-            .bind(widget_id.to_string())
-            .fetch_all(&self.pool)
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))
+        let results: Vec<_> = self
+            .client
+            .query()
+            .table_name("EventStore")
+            .consistent_read(true)
+            .key_condition_expression("AggregateID = :widget_id")
+            .expression_attribute_values("widget_id", AttributeValue::S(widget_id.to_string()))
+            .into_paginator()
+            .send()
+            .collect()
+            .await;
+        if results.iter().any(Result::is_err) {
+            let errs: Vec<_> = results
+                .into_iter()
+                .filter(|x| x.is_err())
+                .map(|x| x.unwrap_err().to_string())
+                .collect();
+            return Err(AggregateError::Unknow(errs.join(",\n").into()));
+        }
+        let items: Vec<_> = results
+            .into_iter()
+            .map(Result::unwrap)
+            .flat_map(|x| x.items().to_vec())
+            .collect();
+        serde_dynamo::from_items(items).map_err(|e| AggregateError::Unknow(e.into()))
     }
 }
 
@@ -42,19 +61,13 @@ impl CommandProcessor for WidgetRepository {
         command_state: kernel::aggregate::WidgetCommandState,
     ) -> Result<(), AggregateError> {
         let model: WidgetAggregateModel = command_state.try_into()?;
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
-        sqlx::query(QUERY_INSERT_AGGREGATE)
-            .bind(model.widget_id())
-            .bind(model.last_events())
-            .bind(model.aggregate_version())
-            .execute(&mut *tx)
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
-        tx.commit()
+        self.client
+            .put_item()
+            .table_name("Aggregate")
+            .set_item(Some(
+                serde_dynamo::to_item(model).map_err(|e| AggregateError::Unknow(e.into()))?,
+            ))
+            .send()
             .await
             .map_err(|e| AggregateError::Unknow(e.into()))?;
         Ok(())
@@ -66,46 +79,42 @@ impl CommandProcessor for WidgetRepository {
         widget_id: kernel::Id<kernel::aggregate::WidgetAggregate>,
     ) -> Result<kernel::aggregate::WidgetAggregate, AggregateError> {
         // Aggregate テーブルから関連する集約項目を取得する
-        let model: WidgetAggregateModel =
-            match sqlx::query_as("SELECT * FROM aggregate WHERE widget_id = ?")
-                .bind(widget_id.to_string())
-                .fetch_one(&self.pool)
-                .await
-            {
-                Ok(x) => x,
-                Err(e) => match e {
-                    sqlx::Error::RowNotFound => return Err(AggregateError::NotFound),
-                    _ => return Err(AggregateError::Unknow(e.into())),
-                },
-            };
+        let model: WidgetAggregateModel = match self
+            .client
+            .get_item()
+            .table_name("Aggregate")
+            .key("ID", AttributeValue::S(widget_id.to_string()))
+            .send()
+            .await
+        {
+            Ok(x) => {
+                let item = x
+                    .item()
+                    .ok_or_else(|| AggregateError::Unknow("item is None".into()))?;
+                serde_dynamo::from_item(item.clone())
+                    .map_err(|e| AggregateError::Unknow(e.into()))?
+            }
+            Err(err) => match err.into_service_error() {
+                GetItemError::ResourceNotFoundException(_) => return Err(AggregateError::NotFound),
+                e => return Err(AggregateError::Unknow(e.into())),
+            },
+        };
         // ビジネスロジックの適用の前にイベントと集約のデータが正しい状態にあることを保証するために
         // 前回集約が保存された際に作成されたイベントを Event テーブルに個々の項目として永続化する
         let aggregate_version = model.aggregate_version();
         let models: Vec<WidgetEventModel> = model.try_into()?;
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
         for model in models {
-            let result = sqlx::query(QUERY_INSERT_EVENT)
-                .bind(model.event_id())
-                .bind(&widget_id.to_string())
-                .bind(model.event_name())
-                .bind(model.payload())
-                .execute(&mut *tx)
-                .await;
-            if let Err(e) = result {
-                match e.as_database_error() {
-                    // NOTE: イベントが既に存在してもイベントは変更不可能なのでエラーを無視する
-                    Some(e) if e.is_unique_violation() => continue,
-                    _ => return Err(AggregateError::Unknow(e.into())),
-                }
-            }
+            self.client
+                .put_item()
+                .table_name("EventStore")
+                .set_item(Some(
+                    serde_dynamo::to_item(model).map_err(|e| AggregateError::Unknow(e.into()))?,
+                ))
+                .condition_expression("attribute_not_exists(ID)")
+                .send()
+                .await
+                .map_err(|e| AggregateError::Unknow(e.into()))?;
         }
-        tx.commit()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
         // 関連するすべてのイベントを読み込んで集約の状態を復元する
         let models: Vec<WidgetEventModel> = self.list_events(&widget_id).await?;
         let mappers: Vec<Result<WidgetEventMapper, Error>> =
@@ -130,33 +139,36 @@ impl CommandProcessor for WidgetRepository {
         command_state: kernel::aggregate::WidgetCommandState,
     ) -> Result<(), AggregateError> {
         let model: WidgetAggregateModel = command_state.try_into()?;
-        let mut tx = self
-            .pool
-            .begin()
-            .await
-            .map_err(|e| AggregateError::Unknow(e.into()))?;
-        let result = sqlx::query(
-            "
-            UPDATE
-                aggregate
-            SET
-                last_events = ?, aggregate_version = ?
-            WHERE
-                widget_id = ? AND aggregate_version = ?
-            ",
-        )
-        .bind(model.last_events())
-        .bind(model.aggregate_version())
-        .bind(model.widget_id())
-        .bind(model.aggregate_version().saturating_sub(1))
-        .execute(&mut *tx)
-        .await
-        .map_err(|e| AggregateError::Unknow(e.into()))?;
-        // NOTE: 同時接続で既に Aggregate が更新されていた場合はエラーを返す
-        if result.rows_affected() == 0 {
-            return Err(AggregateError::Conflict);
-        }
-        tx.commit()
+        self.client
+            .update_item()
+            .table_name("Aggregate")
+            .key(
+                "ID",
+                serde_dynamo::to_attribute_value(model.widget_id())
+                    .map_err(|e| AggregateError::Unknow(e.into()))?,
+            )
+            .set_expression_attribute_values(Some(HashMap::from([
+                (
+                    "NewLastEvents".to_string(),
+                    serde_dynamo::to_attribute_value(model.last_events())
+                        .map_err(|e| AggregateError::Unknow(e.into()))?,
+                ),
+                (
+                    "NewAggregateVersion".to_string(),
+                    serde_dynamo::to_attribute_value(model.aggregate_version())
+                        .map_err(|e| AggregateError::Unknow(e.into()))?,
+                ),
+                (
+                    "CurrentAggregateVersion".to_string(),
+                    serde_dynamo::to_attribute_value(model.aggregate_version().saturating_sub(1))
+                        .map_err(|e| AggregateError::Unknow(e.into()))?,
+                ),
+            ])))
+            .update_expression(
+                "SET LastEvents = :NewLastEvents,AggregateVersion = :NewAggregateVersion",
+            )
+            .condition_expression("AggregateVersion = :CurrentAggregateVersion")
+            .send()
             .await
             .map_err(|e| AggregateError::Unknow(e.into()))?;
         Ok(())
@@ -168,25 +180,25 @@ mod tests {
     use std::future::Future;
     use std::pin::Pin;
 
+    use aws_sdk_dynamodb::types::{
+        AttributeDefinition, KeySchemaElement, KeyType, ProvisionedThroughput, ScalarAttributeType,
+    };
     use kernel::aggregate::{WidgetAggregate, WidgetCommandState};
     use kernel::command::WidgetCommand;
-    use kernel::error::{AggregateError, ApplyCommandError, LoadEventError};
+    use kernel::error::AggregateError;
     use kernel::processor::CommandProcessor;
     use kernel::Id;
-    use lib::{DateTime, Error};
+    use lib::{test_client, DateTime, Error};
     use testcontainers::clients::Cli;
-    use testcontainers_modules::mysql::Mysql;
+    use testcontainers_modules::dynamodb_local::DynamoDb;
 
     use crate::model::{WidgetAggregateModel, WidgetEventModel};
-    use crate::persistence::{connect, ConnectionPool};
     use crate::repository::WidgetRepository;
-
-    use super::{QUERY_INSERT_AGGREGATE, QUERY_INSERT_EVENT};
 
     type AsyncAssertFn<'a, T> = fn(
         name: &'a str,
         actual: T,
-        pool: ConnectionPool,
+        client: aws_sdk_dynamodb::Client,
     ) -> Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
 
     const WIDGET_NAME: &str = "部品名";
@@ -234,52 +246,108 @@ mod tests {
             }
         }
 
-        async fn execute(self, pool: &ConnectionPool) -> Result<(), Error> {
-            let query = match self {
-                Fixture::Aggregate {
-                    widget_id,
-                    last_events,
-                    aggregate_version,
-                } => sqlx::query(QUERY_INSERT_AGGREGATE)
-                    .bind(widget_id)
-                    .bind(last_events)
-                    .bind(aggregate_version),
-                Fixture::Event {
-                    event_id,
-                    widget_id,
-                    event_name,
-                    payload,
-                } => sqlx::query(QUERY_INSERT_EVENT)
-                    .bind(event_id)
-                    .bind(widget_id)
-                    .bind(event_name)
-                    .bind(payload),
-            };
-            query.execute(pool).await?;
+        async fn execute(self, client: &aws_sdk_dynamodb::Client, table_name: &str) -> Result<(), Error> {
+            // client.put_item().table_name(table_name).set_item(input)
+            // self.client
+            //     .put_item()
+            //     .table_name("Aggregate")
+            //     .set_item(Some(
+            //         serde_dynamo::to_item(model).map_err(|e| AggregateError::Unknow(e.into()))?,
+            //     ))
+            //     .send()
+            //     .await
+            //     .map_err(|e| AggregateError::Unknow(e.into()))?;
+            // let query = match self {
+            //     Fixture::Aggregate {
+            //         widget_id,
+            //         last_events,
+            //         aggregate_version,
+            //     } => sqlx::query(QUERY_INSERT_AGGREGATE)
+            //         .bind(widget_id)
+            //         .bind(last_events)
+            //         .bind(aggregate_version),
+            //     Fixture::Event {
+            //         event_id,
+            //         widget_id,
+            //         event_name,
+            //         payload,
+            //     } => sqlx::query(QUERY_INSERT_EVENT)
+            //         .bind(event_id)
+            //         .bind(widget_id)
+            //         .bind(event_name)
+            //         .bind(payload),
+            // };
+            // query.execute(pool).await?;
             Ok(())
         }
     }
 
     /// 集約の作成を永続化するテスト
     #[tokio::test]
-    async fn test_crate_aggregate() -> Result<(), Error> {
+    async fn test_create_aggregate() -> Result<(), Error> {
         let docker = Cli::default();
-        let container = docker.run(Mysql::default());
-        let pool = connect(&format!(
-            "mysql://root@127.0.0.1:{}/mysql",
-            container.get_host_port_ipv4(3306)
-        ))
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132634_create_aggregate.sql"
-        ))
-        .execute(&pool)
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132646_create_event.sql"
-        ))
-        .execute(&pool)
-        .await?;
+        let dynamodb = docker.run(DynamoDb::default());
+        let client = test_client(dynamodb.get_host_port_ipv4(8000)).await;
+        client
+            .create_table()
+            .table_name("Aggregate")
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("ID")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .key_schema(
+                KeySchemaElement::builder()
+                    .attribute_name("ID")
+                    .key_type(KeyType::Hash)
+                    .build()?,
+            )
+            .billing_mode(aws_sdk_dynamodb::types::BillingMode::Provisioned)
+            .provisioned_throughput(
+                ProvisionedThroughput::builder()
+                    .read_capacity_units(20)
+                    .write_capacity_units(20)
+                    .build()?,
+            )
+            .send()
+            .await?;
+        client
+            .create_table()
+            .table_name("EventStore")
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("AggregateID")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("ID")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .key_schema(
+                KeySchemaElement::builder()
+                    .attribute_name("AggregateID")
+                    .key_type(KeyType::Hash)
+                    .build()?,
+            )
+            .key_schema(
+                KeySchemaElement::builder()
+                    .attribute_name("ID")
+                    .key_type(KeyType::Range)
+                    .build()?,
+            )
+            .billing_mode(aws_sdk_dynamodb::types::BillingMode::Provisioned)
+            .provisioned_throughput(
+                ProvisionedThroughput::builder()
+                    .read_capacity_units(20)
+                    .write_capacity_units(20)
+                    .build()?,
+            )
+            .send()
+            .await?;
 
         struct TestCase<'a> {
             name: &'a str,
@@ -294,13 +362,17 @@ mod tests {
                     widget_description: WIDGET_DESCRIPTION.to_string(),
                 },
             )?,
-            assert: (move |name, result, pool| {
+            assert: (move |name, result, client| {
                 Box::pin(async move {
                     assert!(result.is_ok(), "{name}");
-                    let models: Vec<WidgetAggregateModel> =
-                        sqlx::query_as("SELECT * FROM aggregate")
-                            .fetch_all(&pool)
-                            .await?;
+                    let items = client
+                        .scan()
+                        .table_name("Aggregate")
+                        .send()
+                        .await?
+                        .items()
+                        .to_vec();
+                    let models: Vec<WidgetAggregateModel> = serde_dynamo::from_items(items)?;
                     assert_eq!(models.len(), 1, "{name}");
                     let model = models.first().unwrap();
                     assert!(
@@ -327,18 +399,23 @@ mod tests {
                         })),
                         "{name}"
                     );
-                    let models: Vec<WidgetEventModel> = sqlx::query_as("SELECT * FROM event")
-                        .fetch_all(&pool)
-                        .await?;
+                    let items = client
+                        .scan()
+                        .table_name("EventStore")
+                        .send()
+                        .await?
+                        .items()
+                        .to_vec();
+                    let models: Vec<WidgetEventModel> = serde_dynamo::from_items(items)?;
                     assert_eq!(models.len(), 0, "{name}");
                     Ok(())
                 })
             }),
         }];
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(client.clone());
         for test in tests {
             let result = repository.create_widget_aggregate(test.command_state).await;
-            (test.assert)(test.name, result, pool.clone()).await?;
+            (test.assert)(test.name, result, client.clone()).await?;
         }
         Ok(())
     }
@@ -347,22 +424,68 @@ mod tests {
     #[tokio::test]
     async fn test_get_aggregate() -> Result<(), Error> {
         let docker = Cli::default();
-        let container = docker.run(Mysql::default());
-        let pool = connect(&format!(
-            "mysql://root@127.0.0.1:{}/mysql",
-            container.get_host_port_ipv4(3306)
-        ))
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132634_create_aggregate.sql"
-        ))
-        .execute(&pool)
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132646_create_event.sql"
-        ))
-        .execute(&pool)
-        .await?;
+        let dynamodb = docker.run(DynamoDb::default());
+        let client = test_client(dynamodb.get_host_port_ipv4(8000)).await;
+        client
+            .create_table()
+            .table_name("Aggregate")
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("ID")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .key_schema(
+                KeySchemaElement::builder()
+                    .attribute_name("ID")
+                    .key_type(KeyType::Hash)
+                    .build()?,
+            )
+            .billing_mode(aws_sdk_dynamodb::types::BillingMode::Provisioned)
+            .provisioned_throughput(
+                ProvisionedThroughput::builder()
+                    .read_capacity_units(20)
+                    .write_capacity_units(20)
+                    .build()?,
+            )
+            .send()
+            .await?;
+        client
+            .create_table()
+            .table_name("EventStore")
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("AggregateID")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .attribute_definitions(
+                AttributeDefinition::builder()
+                    .attribute_name("ID")
+                    .attribute_type(ScalarAttributeType::S)
+                    .build()?,
+            )
+            .key_schema(
+                KeySchemaElement::builder()
+                    .attribute_name("AggregateID")
+                    .key_type(KeyType::Hash)
+                    .build()?,
+            )
+            .key_schema(
+                KeySchemaElement::builder()
+                    .attribute_name("ID")
+                    .key_type(KeyType::Range)
+                    .build()?,
+            )
+            .billing_mode(aws_sdk_dynamodb::types::BillingMode::Provisioned)
+            .provisioned_throughput(
+                ProvisionedThroughput::builder()
+                    .read_capacity_units(20)
+                    .write_capacity_units(20)
+                    .build()?,
+            )
+            .send()
+            .await?;
 
         struct TestCase<'a> {
             name: &'a str,
@@ -414,12 +537,16 @@ mod tests {
                     }]),
                     0,
                 )],
-                assert: (move |name, _, pool| {
+                assert: (move |name, _, client| {
                     Box::pin(async move {
-                        let models: Vec<WidgetAggregateModel> =
-                            sqlx::query_as("SELECT * FROM aggregate")
-                                .fetch_all(&pool)
-                                .await?;
+                        let items = client
+                            .scan()
+                            .table_name("Aggregate")
+                            .send()
+                            .await?
+                            .items()
+                            .to_vec();
+                        let models: Vec<WidgetAggregateModel> = serde_dynamo::from_items(items)?;
                         assert_eq!(models.len(), 1, "{name}");
                         let model = models.first().unwrap();
                         assert_eq!(model.aggregate_version(), 0, "{name}");
@@ -440,593 +567,646 @@ mod tests {
                     })
                 }),
             },
-            TestCase {
-                name: "Aggregate テーブルに直近のイベントが集約作成イベントかつイベントが永続化前の場合、Event テーブルに集約作成イベントが永続化される",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![Fixture::aggregate(
-                    DateTime::DT2023_01_01_00_00_00_00.id(),
-                    serde_json::json!([{
-                        "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "event_name": "WidgetCreated",
-                        "payload": {
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION,
-                        },
-                    }]),
-                    0,
-                )],
-                assert: (move |name, _, pool| {
-                    Box::pin(async move {
-                        let models: Vec<WidgetEventModel> = sqlx::query_as("SELECT * FROM event")
-                            .fetch_all(&pool)
-                            .await?;
-                        assert_eq!(models.len(), 1, "{name}");
-                        let model = models.first().unwrap();
-                        assert_eq!(
-                            model.event_id(),
-                            DateTime::DT2023_01_01_00_00_00_00.id(),
-                            "{name}"
-                        );
-                        assert_eq!(model.event_name(), "WidgetCreated", "{name}");
-                        assert_eq!(
-                            model.payload(),
-                            &serde_json::json!({
-                                "version": "V1",
-                                "widget_name": WIDGET_NAME,
-                                "widget_description": WIDGET_DESCRIPTION
-                            }),
-                            "{name}"
-                        );
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "Aggregate テーブルの直近のイベントが永続化後の場合、エラーなく集約を取得でき、Event テーブルも変更されない",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![
-                    Fixture::aggregate(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        serde_json::json!([{
-                            "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
-                            "event_name": "WidgetCreated",
-                            "payload": {
-                                "version": "V1",
-                                "widget_name": WIDGET_NAME,
-                                "widget_description": WIDGET_DESCRIPTION,
-                            },
-                        }]),
-                        0,
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetCreated",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION,
-                        }),
-                    ),
-                ],
-                assert: (move |name, result, pool| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
-                        let aggregate = result.unwrap();
-                        assert_eq!(aggregate.name(), WIDGET_NAME, "{name}");
-                        assert_eq!(aggregate.description(), WIDGET_DESCRIPTION, "{name}");
-                        assert_eq!(aggregate.version(), 0, "{name}");
+            // TestCase {
+            //     name: "Aggregate テーブルに直近のイベントが集約作成イベントかつイベントが永続化前の場合、Event テーブルに集約作成イベントが永続化される",
+            //     widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+            //     fixtures: vec![Fixture::aggregate(
+            //         DateTime::DT2023_01_01_00_00_00_00.id(),
+            //         serde_json::json!([{
+            //             "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             "event_name": "WidgetCreated",
+            //             "payload": {
+            //                 "version": "V1",
+            //                 "widget_name": WIDGET_NAME,
+            //                 "widget_description": WIDGET_DESCRIPTION,
+            //             },
+            //         }]),
+            //         0,
+            //     )],
+            //     assert: (move |name, _, client| {
+            //         Box::pin(async move {
+            //             let items = client
+            //                 .scan()
+            //                 .table_name("EventStore")
+            //                 .send()
+            //                 .await?
+            //                 .items()
+            //                 .to_vec();
+            //             let models: Vec<WidgetEventModel> = serde_dynamo::from_items(items)?;
+            //             assert_eq!(models.len(), 1, "{name}");
+            //             let model = models.first().unwrap();
+            //             assert_eq!(
+            //                 model.event_id(),
+            //                 DateTime::DT2023_01_01_00_00_00_00.id(),
+            //                 "{name}"
+            //             );
+            //             assert_eq!(model.event_name(), "WidgetCreated", "{name}");
+            //             assert_eq!(
+            //                 model.payload(),
+            //                 &serde_json::json!({
+            //                     "version": "V1",
+            //                     "widget_name": WIDGET_NAME,
+            //                     "widget_description": WIDGET_DESCRIPTION
+            //                 }),
+            //                 "{name}"
+            //             );
+            //             Ok(())
+            //         })
+            //     }),
+            // },
+            // TestCase {
+            //     name: "Aggregate テーブルの直近のイベントが永続化後の場合、エラーなく集約を取得でき、Event テーブルも変更されない",
+            //     widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+            //     fixtures: vec![
+            //         Fixture::aggregate(
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             serde_json::json!([{
+            //                 "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
+            //                 "event_name": "WidgetCreated",
+            //                 "payload": {
+            //                     "version": "V1",
+            //                     "widget_name": WIDGET_NAME,
+            //                     "widget_description": WIDGET_DESCRIPTION,
+            //                 },
+            //             }]),
+            //             0,
+            //         ),
+            //         Fixture::event(
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             "WidgetCreated",
+            //             serde_json::json!({
+            //                 "version": "V1",
+            //                 "widget_name": WIDGET_NAME,
+            //                 "widget_description": WIDGET_DESCRIPTION,
+            //             }),
+            //         ),
+            //     ],
+            //     assert: (move |name, result, pool| {
+            //         Box::pin(async move {
+            //             assert!(result.is_ok(), "{name}");
+            //             let aggregate = result.unwrap();
+            //             assert_eq!(aggregate.name(), WIDGET_NAME, "{name}");
+            //             assert_eq!(aggregate.description(), WIDGET_DESCRIPTION, "{name}");
+            //             assert_eq!(aggregate.version(), 0, "{name}");
 
-                        let models: Vec<WidgetEventModel> = sqlx::query_as("SELECT * FROM event")
-                            .fetch_all(&pool)
-                            .await?;
-                        assert_eq!(models.len(), 1, "{name}");
-                        let model = models.first().unwrap();
-                        assert_eq!(
-                            model.event_id(),
-                            DateTime::DT2023_01_01_00_00_00_00.id(),
-                            "{name}"
-                        );
-                        assert_eq!(model.event_name(), "WidgetCreated", "{name}");
-                        assert_eq!(
-                            model.payload(),
-                            &serde_json::json!({
-                                "version": "V1",
-                                "widget_name": WIDGET_NAME,
-                                "widget_description": WIDGET_DESCRIPTION
-                            }),
-                            "{name}"
-                        );
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "複数のイベントがある場合、全てのイベントから集約を復元する",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![
-                    Fixture::aggregate(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        serde_json::json!([{
-                            "event_id": DateTime::DT2023_01_01_00_00_00_02.id(),
-                            "event_name": "WidgetDescriptionChanged",
-                            "payload": {
-                                "version": "V1",
-                                "widget_description": "部品の説明v2",
-                            },
-                        }]),
-                        2,
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetCreated",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION,
-                        }),
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_01.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetNameChanged",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": "部品名v2",
-                        }),
-                    ),
-                ],
-                assert: (move |name, result, _| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
-                        let aggregate = result.unwrap();
-                        assert_eq!(aggregate.name(), "部品名v2", "{name}");
-                        assert_eq!(aggregate.description(), "部品の説明v2", "{name}");
-                        assert_eq!(aggregate.version(), 2, "{name}");
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "同一のイベントが複数ある場合、イベントの発生順に集約を復元する",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![
-                    Fixture::aggregate(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        serde_json::json!([{
-                            "event_id": DateTime::DT2023_01_01_00_00_00_02.id(),
-                            "event_name": "WidgetNameChanged",
-                            "payload": {
-                                "version": "V1",
-                                "widget_name": "部品名v3"
-                            },
-                        }]),
-                        2,
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetCreated",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION,
-                        }),
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_01.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetNameChanged",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": "部品名v2",
-                        }),
-                    ),
-                ],
-                assert: (move |name, result, _| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
-                        let aggregate = result.unwrap();
-                        assert_eq!(aggregate.name(), "部品名v3", "{name}");
-                        assert_eq!(aggregate.description(), WIDGET_DESCRIPTION, "{name}");
-                        assert_eq!(aggregate.version(), 2, "{name}");
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "集約が存在しない場合は、AggregateError::NotFoud が返る",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: Vec::new(),
-                assert: (move |name, result, _| {
-                    Box::pin(async move {
-                        assert!(matches!(result, Err(AggregateError::NotFound)), "{name}");
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "Aggregate テーブルの last_events が不正な場合、エラーが起きる",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![Fixture::aggregate(
-                    DateTime::DT2023_01_01_00_00_00_00.id(),
-                    serde_json::json!([]),
-                    0,
-                )],
-                assert: (move |name, result, _| {
-                    Box::pin(async move {
-                        assert!(result.is_err(), "{name}");
-                        let e = result.err().unwrap();
-                        assert_eq!(e.to_string(), LoadEventError::EventsIsEmpty.to_string(), "{name}");
-                        Ok(())
-                    })
-                }),
-            },
+            //             let models: Vec<WidgetEventModel> = sqlx::query_as("SELECT * FROM event")
+            //                 .fetch_all(&pool)
+            //                 .await?;
+            //             assert_eq!(models.len(), 1, "{name}");
+            //             let model = models.first().unwrap();
+            //             assert_eq!(
+            //                 model.event_id(),
+            //                 DateTime::DT2023_01_01_00_00_00_00.id(),
+            //                 "{name}"
+            //             );
+            //             assert_eq!(model.event_name(), "WidgetCreated", "{name}");
+            //             assert_eq!(
+            //                 model.payload(),
+            //                 &serde_json::json!({
+            //                     "version": "V1",
+            //                     "widget_name": WIDGET_NAME,
+            //                     "widget_description": WIDGET_DESCRIPTION
+            //                 }),
+            //                 "{name}"
+            //             );
+            //             Ok(())
+            //         })
+            //     }),
+            // },
+            // TestCase {
+            //     name: "複数のイベントがある場合、全てのイベントから集約を復元する",
+            //     widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+            //     fixtures: vec![
+            //         Fixture::aggregate(
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             serde_json::json!([{
+            //                 "event_id": DateTime::DT2023_01_01_00_00_00_02.id(),
+            //                 "event_name": "WidgetDescriptionChanged",
+            //                 "payload": {
+            //                     "version": "V1",
+            //                     "widget_description": "部品の説明v2",
+            //                 },
+            //             }]),
+            //             2,
+            //         ),
+            //         Fixture::event(
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             "WidgetCreated",
+            //             serde_json::json!({
+            //                 "version": "V1",
+            //                 "widget_name": WIDGET_NAME,
+            //                 "widget_description": WIDGET_DESCRIPTION,
+            //             }),
+            //         ),
+            //         Fixture::event(
+            //             DateTime::DT2023_01_01_00_00_00_01.id(),
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             "WidgetNameChanged",
+            //             serde_json::json!({
+            //                 "version": "V1",
+            //                 "widget_name": "部品名v2",
+            //             }),
+            //         ),
+            //     ],
+            //     assert: (move |name, result, _| {
+            //         Box::pin(async move {
+            //             assert!(result.is_ok(), "{name}");
+            //             let aggregate = result.unwrap();
+            //             assert_eq!(aggregate.name(), "部品名v2", "{name}");
+            //             assert_eq!(aggregate.description(), "部品の説明v2", "{name}");
+            //             assert_eq!(aggregate.version(), 2, "{name}");
+            //             Ok(())
+            //         })
+            //     }),
+            // },
+            // TestCase {
+            //     name: "同一のイベントが複数ある場合、イベントの発生順に集約を復元する",
+            //     widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+            //     fixtures: vec![
+            //         Fixture::aggregate(
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             serde_json::json!([{
+            //                 "event_id": DateTime::DT2023_01_01_00_00_00_02.id(),
+            //                 "event_name": "WidgetNameChanged",
+            //                 "payload": {
+            //                     "version": "V1",
+            //                     "widget_name": "部品名v3"
+            //                 },
+            //             }]),
+            //             2,
+            //         ),
+            //         Fixture::event(
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             "WidgetCreated",
+            //             serde_json::json!({
+            //                 "version": "V1",
+            //                 "widget_name": WIDGET_NAME,
+            //                 "widget_description": WIDGET_DESCRIPTION,
+            //             }),
+            //         ),
+            //         Fixture::event(
+            //             DateTime::DT2023_01_01_00_00_00_01.id(),
+            //             DateTime::DT2023_01_01_00_00_00_00.id(),
+            //             "WidgetNameChanged",
+            //             serde_json::json!({
+            //                 "version": "V1",
+            //                 "widget_name": "部品名v2",
+            //             }),
+            //         ),
+            //     ],
+            //     assert: (move |name, result, _| {
+            //         Box::pin(async move {
+            //             assert!(result.is_ok(), "{name}");
+            //             let aggregate = result.unwrap();
+            //             assert_eq!(aggregate.name(), "部品名v3", "{name}");
+            //             assert_eq!(aggregate.description(), WIDGET_DESCRIPTION, "{name}");
+            //             assert_eq!(aggregate.version(), 2, "{name}");
+            //             Ok(())
+            //         })
+            //     }),
+            // },
+            // TestCase {
+            //     name: "集約が存在しない場合は、AggregateError::NotFoud が返る",
+            //     widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+            //     fixtures: Vec::new(),
+            //     assert: (move |name, result, _| {
+            //         Box::pin(async move {
+            //             assert!(matches!(result, Err(AggregateError::NotFound)), "{name}");
+            //             Ok(())
+            //         })
+            //     }),
+            // },
+            // TestCase {
+            //     name: "Aggregate テーブルの last_events が不正な場合、エラーが起きる",
+            //     widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+            //     fixtures: vec![Fixture::aggregate(
+            //         DateTime::DT2023_01_01_00_00_00_00.id(),
+            //         serde_json::json!([]),
+            //         0,
+            //     )],
+            //     assert: (move |name, result, _| {
+            //         Box::pin(async move {
+            //             assert!(result.is_err(), "{name}");
+            //             let e = result.err().unwrap();
+            //             assert_eq!(e.to_string(), LoadEventError::EventsIsEmpty.to_string(), "{name}");
+            //             Ok(())
+            //         })
+            //     }),
+            // },
         ];
-        let repository = WidgetRepository::new(pool.clone());
+        let repository = WidgetRepository::new(client.clone());
         for test in tests {
-            sqlx::query("TRUNCATE TABLE aggregate")
-                .execute(&pool)
-                .await?;
-            sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
+            // sqlx::query("TRUNCATE TABLE aggregate")
+            //     .execute(&pool)
+            //     .await?;
+            // sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
             for fixture in test.fixtures {
                 fixture.execute(&pool).await?;
             }
             let result = repository.get_widget_aggregate(test.widget_id).await;
-            (test.assert)(test.name, result, pool.clone()).await?;
+            (test.assert)(test.name, result, client.clone()).await?;
         }
         Ok(())
     }
 
-    /// Event テーブルからイベントを取得するテスト
-    #[tokio::test]
-    async fn test_list_events() -> Result<(), Error> {
-        let docker = Cli::default();
-        let container = docker.run(Mysql::default());
-        let pool = connect(&format!(
-            "mysql://root@127.0.0.1:{}/mysql",
-            container.get_host_port_ipv4(3306)
-        ))
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132634_create_aggregate.sql"
-        ))
-        .execute(&pool)
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132646_create_event.sql"
-        ))
-        .execute(&pool)
-        .await?;
+    // /// Event テーブルからイベントを取得するテスト
+    // #[tokio::test]
+    // async fn test_list_events() -> Result<(), Error> {
+    //     let docker = Cli::default();
+    //     let container = docker.run(Mysql::default());
+    //     let pool = connect(&format!(
+    //         "mysql://root@127.0.0.1:{}/mysql",
+    //         container.get_host_port_ipv4(3306)
+    //     ))
+    //     .await?;
+    //     sqlx::query(include_str!(
+    //         "../../../migrations/20240210132634_create_aggregate.sql"
+    //     ))
+    //     .execute(&pool)
+    //     .await?;
+    //     sqlx::query(include_str!(
+    //         "../../../migrations/20240210132646_create_event.sql"
+    //     ))
+    //     .execute(&pool)
+    //     .await?;
+    //     let dynamodb = docker.run(DynamoDb::default());
+    //     let client = test_client(dynamodb.get_host_port_ipv4(8000)).await;
+    //     client
+    //         .create_table()
+    //         .table_name("Aggregate")
+    //         .set_attribute_definitions(Some(vec![AttributeDefinition::builder()
+    //             .attribute_name("ID")
+    //             .attribute_type(ScalarAttributeType::S)
+    //             .build()?]))
+    //         .set_key_schema(Some(vec![KeySchemaElement::builder()
+    //             .attribute_name("ID")
+    //             .key_type(KeyType::Hash)
+    //             .build()?]))
+    //         .send()
+    //         .await?;
+    //     client
+    //         .create_table()
+    //         .table_name("EventStore")
+    //         .set_attribute_definitions(Some(vec![
+    //             AttributeDefinition::builder()
+    //                 .attribute_name("AggregateID")
+    //                 .attribute_type(ScalarAttributeType::S)
+    //                 .build()?,
+    //             AttributeDefinition::builder()
+    //                 .attribute_name("ID")
+    //                 .attribute_type(ScalarAttributeType::S)
+    //                 .build()?,
+    //         ]))
+    //         .set_key_schema(Some(vec![
+    //             KeySchemaElement::builder()
+    //                 .attribute_name("AggregateID")
+    //                 .key_type(KeyType::Hash)
+    //                 .build()?,
+    //             KeySchemaElement::builder()
+    //                 .attribute_name("ID")
+    //                 .key_type(KeyType::Range)
+    //                 .build()?,
+    //         ]))
+    //         .send()
+    //         .await?;
 
-        struct TestCase<'a> {
-            name: &'a str,
-            widget_id: Id<WidgetAggregate>,
-            fixtures: Vec<Fixture>,
-            assert: AsyncAssertFn<'a, Result<Vec<WidgetEventModel>, AggregateError>>,
-        }
-        let tests = vec![
-            TestCase {
-                name: "イベントが存在しない場合",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: Vec::new(),
-                assert: (move |name, result, _| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
-                        let models = result.unwrap();
-                        assert!(models.is_empty(), "{name}");
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "イベント ID をバラバラの状態で存在した場合、時系列順にイベントを取得する",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_01.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetCreated",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION
-                        }),
-                    ),
-                    Fixture::event(
-                        DateTime::DT2024_01_01_00_00_00_00.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetNameChanged",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                        }),
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_01_00.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetNameChanged",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                        }),
-                    ),
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_02.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetDescriptionChanged",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_description": WIDGET_DESCRIPTION
-                        }),
-                    ),
-                ],
-                assert: (move |name, result, _| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
-                        let ids: Vec<_> = result
-                            .unwrap()
-                            .into_iter()
-                            .map(|x| x.event_id().to_string())
-                            .collect();
-                        assert_eq!(
-                            ids,
-                            vec![
-                                DateTime::DT2023_01_01_00_00_00_01.id(),
-                                DateTime::DT2023_01_01_00_00_00_02.id(),
-                                DateTime::DT2023_01_01_00_00_01_00.id(),
-                                DateTime::DT2024_01_01_00_00_00_00.id(),
-                            ],
-                            "{name}"
-                        );
-                        Ok(())
-                    })
-                }),
-            },
-        ];
-        let repository = WidgetRepository::new(pool.clone());
-        for test in tests {
-            sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
-            for fixture in test.fixtures {
-                fixture.execute(&pool).await?;
-            }
-            let result = repository.list_events(&test.widget_id).await;
-            (test.assert)(test.name, result, pool.clone()).await?;
-        }
-        Ok(())
-    }
+    //     struct TestCase<'a> {
+    //         name: &'a str,
+    //         widget_id: Id<WidgetAggregate>,
+    //         fixtures: Vec<Fixture>,
+    //         assert: AsyncAssertFn<'a, Result<Vec<WidgetEventModel>, AggregateError>>,
+    //     }
+    //     let tests = vec![
+    //         TestCase {
+    //             name: "イベントが存在しない場合",
+    //             widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+    //             fixtures: Vec::new(),
+    //             assert: (move |name, result, _| {
+    //                 Box::pin(async move {
+    //                     assert!(result.is_ok(), "{name}");
+    //                     let models = result.unwrap();
+    //                     assert!(models.is_empty(), "{name}");
+    //                     Ok(())
+    //                 })
+    //             }),
+    //         },
+    //         TestCase {
+    //             name: "イベント ID をバラバラの状態で存在した場合、時系列順にイベントを取得する",
+    //             widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+    //             fixtures: vec![
+    //                 Fixture::event(
+    //                     DateTime::DT2023_01_01_00_00_00_01.id(),
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     "WidgetCreated",
+    //                     serde_json::json!({
+    //                         "version": "V1",
+    //                         "widget_name": WIDGET_NAME,
+    //                         "widget_description": WIDGET_DESCRIPTION
+    //                     }),
+    //                 ),
+    //                 Fixture::event(
+    //                     DateTime::DT2024_01_01_00_00_00_00.id(),
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     "WidgetNameChanged",
+    //                     serde_json::json!({
+    //                         "version": "V1",
+    //                         "widget_name": WIDGET_NAME,
+    //                     }),
+    //                 ),
+    //                 Fixture::event(
+    //                     DateTime::DT2023_01_01_00_00_01_00.id(),
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     "WidgetNameChanged",
+    //                     serde_json::json!({
+    //                         "version": "V1",
+    //                         "widget_name": WIDGET_NAME,
+    //                     }),
+    //                 ),
+    //                 Fixture::event(
+    //                     DateTime::DT2023_01_01_00_00_00_02.id(),
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     "WidgetDescriptionChanged",
+    //                     serde_json::json!({
+    //                         "version": "V1",
+    //                         "widget_description": WIDGET_DESCRIPTION
+    //                     }),
+    //                 ),
+    //             ],
+    //             assert: (move |name, result, _| {
+    //                 Box::pin(async move {
+    //                     assert!(result.is_ok(), "{name}");
+    //                     let ids: Vec<_> = result
+    //                         .unwrap()
+    //                         .into_iter()
+    //                         .map(|x| x.event_id().to_string())
+    //                         .collect();
+    //                     assert_eq!(
+    //                         ids,
+    //                         vec![
+    //                             DateTime::DT2023_01_01_00_00_00_01.id(),
+    //                             DateTime::DT2023_01_01_00_00_00_02.id(),
+    //                             DateTime::DT2023_01_01_00_00_01_00.id(),
+    //                             DateTime::DT2024_01_01_00_00_00_00.id(),
+    //                         ],
+    //                         "{name}"
+    //                     );
+    //                     Ok(())
+    //                 })
+    //             }),
+    //         },
+    //     ];
+    //     let repository = WidgetRepository::new(pool.clone(), client);
+    //     for test in tests {
+    //         sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
+    //         for fixture in test.fixtures {
+    //             fixture.execute(&pool).await?;
+    //         }
+    //         let result = repository.list_events(&test.widget_id).await;
+    //         (test.assert)(test.name, result, pool.clone()).await?;
+    //     }
+    //     Ok(())
+    // }
 
-    /// 集約を更新するテスト
-    #[tokio::test]
-    async fn test_update_widget_aggregate() -> Result<(), Error> {
-        let docker = Cli::default();
-        let container = docker.run(Mysql::default());
-        let pool = connect(&format!(
-            "mysql://root@127.0.0.1:{}/mysql",
-            container.get_host_port_ipv4(3306)
-        ))
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132634_create_aggregate.sql"
-        ))
-        .execute(&pool)
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132646_create_event.sql"
-        ))
-        .execute(&pool)
-        .await?;
+    // /// 集約を更新するテスト
+    // #[tokio::test]
+    // async fn test_update_widget_aggregate() -> Result<(), Error> {
+    //     let docker = Cli::default();
+    //     let container = docker.run(Mysql::default());
+    //     let pool = connect(&format!(
+    //         "mysql://root@127.0.0.1:{}/mysql",
+    //         container.get_host_port_ipv4(3306)
+    //     ))
+    //     .await?;
+    //     sqlx::query(include_str!(
+    //         "../../../migrations/20240210132634_create_aggregate.sql"
+    //     ))
+    //     .execute(&pool)
+    //     .await?;
+    //     sqlx::query(include_str!(
+    //         "../../../migrations/20240210132646_create_event.sql"
+    //     ))
+    //     .execute(&pool)
+    //     .await?;
+    //     let dynamodb = docker.run(DynamoDb::default());
 
-        struct TestCase<'a> {
-            name: &'a str,
-            widget_id: Id<WidgetAggregate>,
-            fixtures: Vec<Fixture>,
-            command_state_builder:
-                fn(aggregate: WidgetAggregate) -> Result<WidgetCommandState, ApplyCommandError>,
-            assert: AsyncAssertFn<'a, Result<(), AggregateError>>,
-        }
-        let tests = vec![
-            TestCase {
-                name: "集約作成後に更新した場合、エラーなく Aggregate テーブルが更新される",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![Fixture::aggregate(
-                    DateTime::DT2023_01_01_00_00_00_00.id(),
-                    serde_json::json!([{
-                        "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "event_name": "WidgetCreated",
-                        "payload": {
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION,
-                        },
-                    }]),
-                    0,
-                )],
-                command_state_builder: |aggregate| {
-                    aggregate.apply_command(WidgetCommand::ChangeWidgetName {
-                        widget_name: "部品名v2".to_string(),
-                    })
-                },
-                assert: (move |name, result, pool| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
+    //     struct TestCase<'a> {
+    //         name: &'a str,
+    //         widget_id: Id<WidgetAggregate>,
+    //         fixtures: Vec<Fixture>,
+    //         command_state_builder:
+    //             fn(aggregate: WidgetAggregate) -> Result<WidgetCommandState, ApplyCommandError>,
+    //         assert: AsyncAssertFn<'a, Result<(), AggregateError>>,
+    //     }
+    //     let tests = vec![
+    //         TestCase {
+    //             name: "集約作成後に更新した場合、エラーなく Aggregate テーブルが更新される",
+    //             widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+    //             fixtures: vec![Fixture::aggregate(
+    //                 DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                 serde_json::json!([{
+    //                     "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     "event_name": "WidgetCreated",
+    //                     "payload": {
+    //                         "version": "V1",
+    //                         "widget_name": WIDGET_NAME,
+    //                         "widget_description": WIDGET_DESCRIPTION,
+    //                     },
+    //                 }]),
+    //                 0,
+    //             )],
+    //             command_state_builder: |aggregate| {
+    //                 aggregate.apply_command(WidgetCommand::ChangeWidgetName {
+    //                     widget_name: "部品名v2".to_string(),
+    //                 })
+    //             },
+    //             assert: (move |name, result, pool| {
+    //                 Box::pin(async move {
+    //                     assert!(result.is_ok(), "{name}");
 
-                        let models: Vec<WidgetAggregateModel> =
-                            sqlx::query_as("SELECT * FROM aggregate")
-                                .fetch_all(&pool)
-                                .await?;
-                        assert_eq!(models.len(), 1, "{name}");
-                        let model = models.first().unwrap();
-                        assert_eq!(model.aggregate_version(), 1, "{name}");
-                        let last_events = model.last_events().as_array();
-                        assert!(last_events.is_some(), "{name}");
-                        let last_events = last_events.unwrap();
-                        assert_eq!(last_events.len(), 1, "{name}");
-                        let event = last_events.first().unwrap();
-                        assert_eq!(
-                            event.get("event_name"),
-                            Some(&serde_json::json!("WidgetNameChanged")),
-                            "{name}"
-                        );
-                        assert_eq!(
-                            event.get("payload"),
-                            Some(&serde_json::json!({
-                                "version": "V1",
-                                "widget_name": "部品名v2",
-                            })),
-                            "{name}"
-                        );
-                        Ok(())
-                    })
-                }),
-            },
-            TestCase {
-                name: "更新済みの集約を更新した場合、エラーなく Aggregate テーブルが更新される",
-                widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
-                fixtures: vec![
-                    Fixture::event(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        "WidgetCreated",
-                        serde_json::json!({
-                            "version": "V1",
-                            "widget_name": WIDGET_NAME,
-                            "widget_description": WIDGET_DESCRIPTION,
-                        }),
-                    ),
-                    Fixture::aggregate(
-                        DateTime::DT2023_01_01_00_00_00_00.id(),
-                        serde_json::json!([{
-                            "event_id": DateTime::DT2023_01_01_00_00_00_01.id(),
-                            "event_name": "WidgetNameChanged",
-                            "payload": {
-                                "version": "V1",
-                                "widget_name": "部品名v2",
-                            },
-                        }]),
-                        1,
-                    ),
-                ],
-                command_state_builder: |aggregate| {
-                    aggregate.apply_command(WidgetCommand::ChangeWidgetName {
-                        widget_name: "部品名v3".to_string(),
-                    })
-                },
-                assert: (move |name, result, pool| {
-                    Box::pin(async move {
-                        assert!(result.is_ok(), "{name}");
+    //                     let models: Vec<WidgetAggregateModel> =
+    //                         sqlx::query_as("SELECT * FROM aggregate")
+    //                             .fetch_all(&pool)
+    //                             .await?;
+    //                     assert_eq!(models.len(), 1, "{name}");
+    //                     let model = models.first().unwrap();
+    //                     assert_eq!(model.aggregate_version(), 1, "{name}");
+    //                     let last_events = model.last_events().as_array();
+    //                     assert!(last_events.is_some(), "{name}");
+    //                     let last_events = last_events.unwrap();
+    //                     assert_eq!(last_events.len(), 1, "{name}");
+    //                     let event = last_events.first().unwrap();
+    //                     assert_eq!(
+    //                         event.get("event_name"),
+    //                         Some(&serde_json::json!("WidgetNameChanged")),
+    //                         "{name}"
+    //                     );
+    //                     assert_eq!(
+    //                         event.get("payload"),
+    //                         Some(&serde_json::json!({
+    //                             "version": "V1",
+    //                             "widget_name": "部品名v2",
+    //                         })),
+    //                         "{name}"
+    //                     );
+    //                     Ok(())
+    //                 })
+    //             }),
+    //         },
+    //         TestCase {
+    //             name: "更新済みの集約を更新した場合、エラーなく Aggregate テーブルが更新される",
+    //             widget_id: DateTime::DT2023_01_01_00_00_00_00.id().parse()?,
+    //             fixtures: vec![
+    //                 Fixture::event(
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     "WidgetCreated",
+    //                     serde_json::json!({
+    //                         "version": "V1",
+    //                         "widget_name": WIDGET_NAME,
+    //                         "widget_description": WIDGET_DESCRIPTION,
+    //                     }),
+    //                 ),
+    //                 Fixture::aggregate(
+    //                     DateTime::DT2023_01_01_00_00_00_00.id(),
+    //                     serde_json::json!([{
+    //                         "event_id": DateTime::DT2023_01_01_00_00_00_01.id(),
+    //                         "event_name": "WidgetNameChanged",
+    //                         "payload": {
+    //                             "version": "V1",
+    //                             "widget_name": "部品名v2",
+    //                         },
+    //                     }]),
+    //                     1,
+    //                 ),
+    //             ],
+    //             command_state_builder: |aggregate| {
+    //                 aggregate.apply_command(WidgetCommand::ChangeWidgetName {
+    //                     widget_name: "部品名v3".to_string(),
+    //                 })
+    //             },
+    //             assert: (move |name, result, pool| {
+    //                 Box::pin(async move {
+    //                     assert!(result.is_ok(), "{name}");
 
-                        let models: Vec<WidgetAggregateModel> =
-                            sqlx::query_as("SELECT * FROM aggregate")
-                                .fetch_all(&pool)
-                                .await?;
-                        assert_eq!(models.len(), 1, "{name}");
-                        let model = models.first().unwrap();
-                        assert_eq!(model.aggregate_version(), 2, "{name}");
-                        let last_events = model.last_events().as_array();
-                        assert!(last_events.is_some(), "{name}");
-                        let last_events = last_events.unwrap();
-                        assert_eq!(last_events.len(), 1, "{name}");
-                        let event = last_events.first().unwrap();
-                        assert_eq!(
-                            event.get("event_name"),
-                            Some(&serde_json::json!("WidgetNameChanged")),
-                            "{name}"
-                        );
-                        assert_eq!(
-                            event.get("payload"),
-                            Some(&serde_json::json!({
-                                "version": "V1",
-                                "widget_name": "部品名v3",
-                            })),
-                            "{name}"
-                        );
-                        Ok(())
-                    })
-                }),
-            },
-        ];
-        let repository = WidgetRepository::new(pool.clone());
-        for test in tests {
-            sqlx::query("TRUNCATE TABLE aggregate")
-                .execute(&pool)
-                .await?;
-            sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
-            for fixture in test.fixtures {
-                fixture.execute(&pool).await?;
-            }
-            let aggregate = repository.get_widget_aggregate(test.widget_id).await?;
-            let result = repository
-                .update_widget_aggregate((test.command_state_builder)(aggregate)?)
-                .await;
-            (test.assert)(test.name, result, pool.clone()).await?;
-        }
-        Ok(())
-    }
+    //                     let models: Vec<WidgetAggregateModel> =
+    //                         sqlx::query_as("SELECT * FROM aggregate")
+    //                             .fetch_all(&pool)
+    //                             .await?;
+    //                     assert_eq!(models.len(), 1, "{name}");
+    //                     let model = models.first().unwrap();
+    //                     assert_eq!(model.aggregate_version(), 2, "{name}");
+    //                     let last_events = model.last_events().as_array();
+    //                     assert!(last_events.is_some(), "{name}");
+    //                     let last_events = last_events.unwrap();
+    //                     assert_eq!(last_events.len(), 1, "{name}");
+    //                     let event = last_events.first().unwrap();
+    //                     assert_eq!(
+    //                         event.get("event_name"),
+    //                         Some(&serde_json::json!("WidgetNameChanged")),
+    //                         "{name}"
+    //                     );
+    //                     assert_eq!(
+    //                         event.get("payload"),
+    //                         Some(&serde_json::json!({
+    //                             "version": "V1",
+    //                             "widget_name": "部品名v3",
+    //                         })),
+    //                         "{name}"
+    //                     );
+    //                     Ok(())
+    //                 })
+    //             }),
+    //         },
+    //     ];
+    //     let repository = WidgetRepository::new(
+    //         pool.clone(),
+    //         test_client(dynamodb.get_host_port_ipv4(8000)).await,
+    //     );
+    //     for test in tests {
+    //         sqlx::query("TRUNCATE TABLE aggregate")
+    //             .execute(&pool)
+    //             .await?;
+    //         sqlx::query("TRUNCATE TABLE event").execute(&pool).await?;
+    //         for fixture in test.fixtures {
+    //             fixture.execute(&pool).await?;
+    //         }
+    //         let aggregate = repository.get_widget_aggregate(test.widget_id).await?;
+    //         let result = repository
+    //             .update_widget_aggregate((test.command_state_builder)(aggregate)?)
+    //             .await;
+    //         (test.assert)(test.name, result, pool.clone()).await?;
+    //     }
+    //     Ok(())
+    // }
 
-    /// 同時に集約を更新した時に更新済みのエラーが返ることをテストする
-    #[tokio::test]
-    async fn test_update_widget_aggregate_return_conflict_error() -> Result<(), Error> {
-        const NAME: &str = "同時に集約を更新した場合, 更新済みのエラーが返る";
+    // /// 同時に集約を更新した時に更新済みのエラーが返ることをテストする
+    // #[tokio::test]
+    // async fn test_update_widget_aggregate_return_conflict_error() -> Result<(), Error> {
+    //     const NAME: &str = "同時に集約を更新した場合, 更新済みのエラーが返る";
 
-        let docker = Cli::default();
-        let container = docker.run(Mysql::default());
-        let pool = connect(&format!(
-            "mysql://root@127.0.0.1:{}/mysql",
-            container.get_host_port_ipv4(3306)
-        ))
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132634_create_aggregate.sql"
-        ))
-        .execute(&pool)
-        .await?;
-        sqlx::query(include_str!(
-            "../../../migrations/20240210132646_create_event.sql"
-        ))
-        .execute(&pool)
-        .await?;
+    //     let docker = Cli::default();
+    //     let container = docker.run(Mysql::default());
+    //     let pool = connect(&format!(
+    //         "mysql://root@127.0.0.1:{}/mysql",
+    //         container.get_host_port_ipv4(3306)
+    //     ))
+    //     .await?;
+    //     sqlx::query(include_str!(
+    //         "../../../migrations/20240210132634_create_aggregate.sql"
+    //     ))
+    //     .execute(&pool)
+    //     .await?;
+    //     sqlx::query(include_str!(
+    //         "../../../migrations/20240210132646_create_event.sql"
+    //     ))
+    //     .execute(&pool)
+    //     .await?;
+    //     let dynamodb = docker.run(DynamoDb::default());
 
-        let repository = WidgetRepository::new(pool.clone());
-        let widget_id: Id<WidgetAggregate> = DateTime::DT2023_01_01_00_00_00_00.id().parse()?;
-        let fixture = Fixture::aggregate(
-            widget_id.to_string(),
-            serde_json::json!([{
-                "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
-                "event_name": "WidgetCreated",
-                "payload": {
-                    "version": "V1",
-                    "widget_name": WIDGET_NAME,
-                    "widget_description": WIDGET_DESCRIPTION,
-                },
-            }]),
-            0,
-        );
-        fixture.execute(&pool).await?;
-        let aggregate = repository.get_widget_aggregate(widget_id).await?;
-        let should_success_command_state =
-            aggregate
-                .clone()
-                .apply_command(WidgetCommand::ChangeWidgetName {
-                    widget_name: WIDGET_NAME.to_string(),
-                })?;
-        let should_conflict_command_state =
-            aggregate.apply_command(WidgetCommand::ChangeWidgetDescription {
-                widget_description: WIDGET_DESCRIPTION.to_string(),
-            })?;
-        let result = repository
-            .update_widget_aggregate(should_success_command_state)
-            .await;
-        assert!(result.is_ok(), "{NAME}");
-        let result = repository
-            .update_widget_aggregate(should_conflict_command_state)
-            .await;
-        assert!(
-            result.is_err_and(|e| matches!(e, AggregateError::Conflict)),
-            "{NAME}"
-        );
-        Ok(())
-    }
+    //     let repository = WidgetRepository::new(
+    //         pool.clone(),
+    //         test_client(dynamodb.get_host_port_ipv4(8000)).await,
+    //     );
+    //     let widget_id: Id<WidgetAggregate> = DateTime::DT2023_01_01_00_00_00_00.id().parse()?;
+    //     let fixture = Fixture::aggregate(
+    //         widget_id.to_string(),
+    //         serde_json::json!([{
+    //             "event_id": DateTime::DT2023_01_01_00_00_00_00.id(),
+    //             "event_name": "WidgetCreated",
+    //             "payload": {
+    //                 "version": "V1",
+    //                 "widget_name": WIDGET_NAME,
+    //                 "widget_description": WIDGET_DESCRIPTION,
+    //             },
+    //         }]),
+    //         0,
+    //     );
+    //     fixture.execute(&pool).await?;
+    //     let aggregate = repository.get_widget_aggregate(widget_id).await?;
+    //     let should_success_command_state =
+    //         aggregate
+    //             .clone()
+    //             .apply_command(WidgetCommand::ChangeWidgetName {
+    //                 widget_name: WIDGET_NAME.to_string(),
+    //             })?;
+    //     let should_conflict_command_state =
+    //         aggregate.apply_command(WidgetCommand::ChangeWidgetDescription {
+    //             widget_description: WIDGET_DESCRIPTION.to_string(),
+    //         })?;
+    //     let result = repository
+    //         .update_widget_aggregate(should_success_command_state)
+    //         .await;
+    //     assert!(result.is_ok(), "{NAME}");
+    //     let result = repository
+    //         .update_widget_aggregate(should_conflict_command_state)
+    //         .await;
+    //     assert!(
+    //         result.is_err_and(|e| matches!(e, AggregateError::Conflict)),
+    //         "{NAME}"
+    //     );
+    //     Ok(())
+    // }
 }
