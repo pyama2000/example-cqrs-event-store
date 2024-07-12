@@ -7,8 +7,11 @@ use sqlx::FromRow;
 /// Aggregate テーブルのモデル
 #[derive(FromRow, Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
 pub(crate) struct WidgetAggregateModel {
+    #[serde(rename = "ID")]
     widget_id: String,
+    #[serde(rename = "LastEvents")]
     last_events: serde_json::Value,
+    #[serde(rename = "AggregateVersion")]
     aggregate_version: u64,
 }
 

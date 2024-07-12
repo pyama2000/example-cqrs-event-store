@@ -20,6 +20,6 @@ tracing = "0.1.40"
 [dev-dependencies]
 lib = { path = "../lib", features = ["test"] }
 testcontainers = "0.15.0"
-testcontainers-modules = { version = "0.3.2", features = ["mysql"] }
+testcontainers-modules = { version = "0.3.2", features = ["mysql", "dynamodb"] }
 tokio = { version = "1.36.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 ulid = "1.1.2"

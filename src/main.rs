@@ -1,16 +1,15 @@
-use adapter::persistence::{client, connect};
+use adapter::persistence::client;
 use adapter::repository::WidgetRepository;
 use app::WidgetServiceImpl;
 use driver::Server;
-use lib::{application_environment, database_url, opentelemetry_endpoint, Error};
+use lib::{application_environment, opentelemetry_endpoint, Error};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let _guard = start_instrument()?;
 
-    let pool = connect(&database_url()).await?;
     let client = client().await;
-    let repository = WidgetRepository::new(pool, client);
+    let repository = WidgetRepository::new(client);
     let service = WidgetServiceImpl::new(repository);
     let server = Server::new("0.0.0.0:8080", service.into());
     server.run().await?;
