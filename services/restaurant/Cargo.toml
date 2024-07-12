@@ -1,0 +1,13 @@
+[package]
+name = "restaurant"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[workspace]
+members = ["internal/*"]
+resolver = "2"
+
+[workspace.lints.clippy]
+pedantic = "warn"
