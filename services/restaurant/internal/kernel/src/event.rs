@@ -47,7 +47,7 @@ impl From<Command> for Vec<Event> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Command, Event, Id, Item, ItemCategory, EventPayload, Price, Restaurant};
+    use crate::{Command, Event, EventPayload, Id, Item, ItemCategory, Price, Restaurant};
 
     #[test]
     fn test_convert_command_into_event() {
