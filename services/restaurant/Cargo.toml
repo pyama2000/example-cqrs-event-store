@@ -9,5 +9,8 @@ edition = "2021"
 members = ["internal/*"]
 resolver = "2"
 
+[workspace.dependencies]
+thiserror = "1.0.62"
+
 [workspace.lints.clippy]
 pedantic = "warn"

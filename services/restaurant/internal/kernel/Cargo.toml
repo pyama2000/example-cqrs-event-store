@@ -4,7 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+thiserror.workspace = true
 uuid = { version = "1.10.0", features = ["v7"] }
+
+[features]
+command = []
 
 [lints]
 workspace = true
