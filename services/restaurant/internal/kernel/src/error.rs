@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Error, Debug)]
 pub enum KernelError {
     #[error("Aggregate already created")]
     AggregateAlreadyCreated,
@@ -14,4 +14,12 @@ pub enum KernelError {
     InvalidItemName,
     #[error("Entities is empty")]
     EntitiesIsEmpty,
+    #[error("Empty event")]
+    EmptyEvent,
+    #[error("Invalid events")]
+    InvalidEvents,
+    #[error("Aggregate not found")]
+    AggregateNotFound,
+    #[error(transparent)]
+    Unknown(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
 }
