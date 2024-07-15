@@ -94,6 +94,12 @@ impl Aggregate {
 
         Ok((aggregate, events))
     }
+
+    #[must_use]
+    #[cfg(feature = "command")]
+    pub fn is_conflicted(&self, version: u64) -> bool {
+        version != self.version
+    }
 }
 
 #[cfg(test)]

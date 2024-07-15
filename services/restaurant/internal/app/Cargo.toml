@@ -4,6 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+kernel = { version = "0.1.0", path = "../kernel", features = ["command"] }
+thiserror.workspace = true
+
+[dev-dependencies]
+kernel = { path = "../kernel", features = ["mockall"] }
+tokio = { version = "1.38.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [lints]
 workspace = true

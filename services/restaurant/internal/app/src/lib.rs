@@ -1,15 +1,11 @@
-#[must_use]
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
-}
+#![allow(clippy::module_name_repetitions)]
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+pub mod error;
+pub mod model;
+pub mod usecase;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use kernel::KernelError;
+
+pub use error::AppError;
+pub use model::{Item, ItemCategory, Price, Restaurant};
+pub use usecase::{CommandService, CommandUseCase};

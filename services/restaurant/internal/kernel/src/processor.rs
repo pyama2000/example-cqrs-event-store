@@ -2,6 +2,7 @@ use std::future::Future;
 
 use crate::{Aggregate, Event, Id, KernelError};
 
+#[cfg_attr(feature = "mockall", mockall::automock)]
 pub trait CommandProcessor {
     fn create(
         &self,
