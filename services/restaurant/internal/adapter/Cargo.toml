@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+aws-config = "1.5.4"
 aws-sdk-dynamodb = "1.38.0"
 kernel = { version = "0.1.0", path = "../kernel" }
 serde = { version = "1.0.204", features = ["derive"] }

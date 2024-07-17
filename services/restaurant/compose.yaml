@@ -1,0 +1,5 @@
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:2.5.2
+    ports:
+      - "${DYNAMODB_PORT:-8000}:8000"
