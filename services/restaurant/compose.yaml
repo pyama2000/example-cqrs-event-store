@@ -1,5 +1,41 @@
 services:
-  dynamodb:
-    image: amazon/dynamodb-local:2.5.2
+  localstack:
+    image: localstack/localstack@sha256:722a22bc441ffcaffa434c1720b04f8bfec60cc24b419ebdc4343cc43908de7f
     ports:
-      - "${DYNAMODB_PORT:-8000}:8000"
+      - "${LOCALSTACK_GATEWAY_PORT:-4566}:4566"
+      - "${LOCALSTACK_EXTERNAL_SERVICE_PORT_RANGE:-4510-4559}:4510-4559"
+    volumes:
+      - "${DOCKER_HOST_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+  # ./terraform ディレクトリをバインドマウントして名前付きボリューム (terraform-volume) にコピーする
+  terraform-setup:
+    image: bash:latest
+    volumes:
+      - ./terraform:/terraform-origin
+      - terraform-volume:/terraform
+    command: ["cp", "-rT", "/terraform-origin", "/terraform"]
+  terraform-init:
+    image: hashicorp/terraform:1.9.2
+    working_dir: /terraform
+    volumes:
+      - terraform-volume:/terraform
+    command: ["init"]
+    depends_on:
+      terraform-setup:
+        condition: service_completed_successfully
+  terraform-apply:
+    image: hashicorp/terraform:1.9.2
+    working_dir: /terraform
+    environment:
+      TF_VAR_aws_service_endpoint: "http://localstack:${LOCALSTACK_GATEWAY_PORT:-4566}"
+    volumes:
+      - terraform-volume:/terraform
+      - /terraform/state
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      localstack:
+        condition: service_started
+      terraform-init:
+        condition: service_completed_successfully
+volumes:
+  terraform-volume:
+    name: terraform
