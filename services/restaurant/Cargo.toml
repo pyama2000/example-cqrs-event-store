@@ -2,12 +2,15 @@
 name = "restaurant"
 version = "0.1.0"
 edition = "2021"
+default-run = "restaurant"
 
 [dependencies]
-adapter = { version = "0.1.0", path = "internal/adapter" }
-app = { version = "0.1.0", path = "internal/app" }
-driver = { version = "0.1.0", path = "internal/driver" }
-kernel = { version = "0.1.0", path = "internal/kernel" }
+adapter = { version = "0.1.0", path = "internal/adapter", optional = true }
+app = { version = "0.1.0", path = "internal/app", optional = true }
+aws_lambda_events = { version = "0.15.1", default-features = false, features = ["dynamodb"], optional = true }
+driver = { version = "0.1.0", path = "internal/driver", optional = true }
+kernel = { version = "0.1.0", path = "internal/kernel", optional = true }
+lambda_runtime = { version = "0.12.0", optional = true }
 tokio = { version = "1.38.1", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [workspace]
@@ -19,3 +22,22 @@ thiserror = "1.0.62"
 
 [workspace.lints.clippy]
 pedantic = "warn"
+
+[features]
+default = ["restaurant"]
+restaurant = ["adapter", "app", "driver", "kernel"]
+event_router = ["aws_lambda_events", "lambda_runtime"]
+aws_lambda_events = ["dep:aws_lambda_events"]
+lambda_runtime = ["dep:lambda_runtime"]
+adapter = ["dep:adapter"]
+app = ["dep:app"]
+driver = ["dep:driver"]
+kernel = ["dep:kernel"]
+
+[[bin]]
+name = "restaurant"
+required-features = ["default"]
+
+[[bin]]
+name = "event_router"
+required-features = ["event_router"]
