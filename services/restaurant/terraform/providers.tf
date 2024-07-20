@@ -9,5 +9,9 @@ provider "aws" {
 
   endpoints {
     dynamodb = var.aws_service_endpoint
+    iam      = var.aws_service_endpoint
+    lambda   = var.aws_service_endpoint
   }
 }
+
+provider "archive" {}
