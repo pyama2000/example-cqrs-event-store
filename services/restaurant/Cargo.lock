@@ -2070,6 +2070,7 @@ dependencies = [
  "driver",
  "kernel",
  "lambda_runtime",
+ "serde_dynamo",
  "tokio",
 ]
 

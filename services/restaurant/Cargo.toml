@@ -11,6 +11,7 @@ aws_lambda_events = { version = "0.15.1", default-features = false, features = [
 driver = { version = "0.1.0", path = "internal/driver", optional = true }
 kernel = { version = "0.1.0", path = "internal/kernel", optional = true }
 lambda_runtime = { version = "0.12.0", optional = true }
+serde_dynamo = { version = "4.2.14", features = ["aws-sdk-dynamodb+1"], optional = true }
 tokio = { version = "1.38.1", default-features = false, features = ["macros", "rt-multi-thread"] }
 
 [workspace]
@@ -25,7 +26,7 @@ pedantic = "warn"
 
 [features]
 default = ["restaurant"]
-restaurant = ["adapter", "app", "driver", "kernel"]
+restaurant = ["adapter", "app", "driver", "kernel", "adapter", "serde_dynamo"]
 event_router = ["aws_lambda_events", "lambda_runtime"]
 aws_lambda_events = ["dep:aws_lambda_events"]
 lambda_runtime = ["dep:lambda_runtime"]
@@ -33,6 +34,7 @@ adapter = ["dep:adapter"]
 app = ["dep:app"]
 driver = ["dep:driver"]
 kernel = ["dep:kernel"]
+serde_dynamo = ["dep:serde_dynamo"]
 
 [[bin]]
 name = "restaurant"

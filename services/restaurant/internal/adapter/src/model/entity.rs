@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Restaurant {
+pub enum Restaurant {
     V1 { id: String, name: String },
 }
 
@@ -15,7 +15,7 @@ impl From<kernel::Restaurant> for Restaurant {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Item {
+pub enum Item {
     V1 {
         id: String,
         name: String,
@@ -36,7 +36,7 @@ impl From<kernel::Item> for Item {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Price {
+pub enum Price {
     Yen(u64),
 }
 
@@ -49,7 +49,7 @@ impl From<kernel::Price> for Price {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ItemCategory {
+pub enum ItemCategory {
     Food,
     Drink,
     Other(String),
