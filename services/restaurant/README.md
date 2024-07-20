@@ -15,6 +15,11 @@
     ```bash
     # バックグラウンドで実行する場合は --wait や -d/--detach オプションを利用する
     docker compose up
+    # Lima を使っている場合は Docker ソケットをマウントするために lima コマンドを利用する
+    ## マウントする Docker ソケットを確認する
+    lima docker context inspect
+    ## Lima でコンテナを起動する
+    lima DOCKER_HOST_SOCK="<Docker ソケット>" docker compose up
     ```
 
 2. API サーバーを起動する
