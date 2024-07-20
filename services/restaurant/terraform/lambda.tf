@@ -32,6 +32,12 @@ resource "aws_lambda_function" "event_router" {
   architectures = ["arm64"]
   handler       = "bootstrap"
   filename      = data.archive_file.dummy.output_path
+
+  environment {
+    variables = {
+      QUERY_MODEL_MAPPER_QUEUE_URL = aws_sqs_queue.query_model_mapper.url
+    }
+  }
 }
 
 resource "aws_lambda_event_source_mapping" "event_router" {

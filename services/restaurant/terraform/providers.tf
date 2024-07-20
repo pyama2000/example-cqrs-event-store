@@ -11,6 +11,7 @@ provider "aws" {
     dynamodb = var.aws_service_endpoint
     iam      = var.aws_service_endpoint
     lambda   = var.aws_service_endpoint
+    sqs      = var.aws_service_endpoint
   }
 }
 

@@ -22,6 +22,16 @@ impl EventModel {
         }
     }
 
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    #[must_use]
+    pub fn aggregate_id(&self) -> &str {
+        &self.aggregate_id
+    }
+
     /// # Errors
     pub fn to_item<T: From<serde_dynamo::Item>>(&self) -> Result<T, Error> {
         Ok(serde_dynamo::to_item(self)?)
