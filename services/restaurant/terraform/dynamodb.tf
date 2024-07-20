@@ -14,12 +14,14 @@ resource "aws_dynamodb_table" "aggregate" {
 
 #trivy:ignore:AVD-AWS-0023 trivy:ignore:AVD-AWS-0024 trivy:ignore:AVD-AWS-0025
 resource "aws_dynamodb_table" "event_store" {
-  name           = "restaurant-event"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 20
-  write_capacity = 20
-  hash_key       = "aggregate_id"
-  range_key      = "id"
+  name             = "restaurant-event"
+  billing_mode     = "PROVISIONED"
+  read_capacity    = 20
+  write_capacity   = 20
+  hash_key         = "aggregate_id"
+  range_key        = "id"
+  stream_enabled   = true
+  stream_view_type = "NEW_IMAGE"
 
   attribute {
     name = "aggregate_id"
