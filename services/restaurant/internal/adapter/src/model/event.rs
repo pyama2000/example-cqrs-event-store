@@ -32,6 +32,11 @@ impl EventModel {
         &self.aggregate_id
     }
 
+    #[must_use]
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
+
     /// # Errors
     pub fn to_item<T: From<serde_dynamo::Item>>(&self) -> Result<T, Error> {
         Ok(serde_dynamo::to_item(self)?)

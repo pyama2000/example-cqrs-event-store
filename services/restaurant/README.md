@@ -63,15 +63,24 @@
                 "item_ids": ["<商品のID>"]
             }'
         ```
+4. MySQL にレコードが追加されていることを確認する
+
+    ```bash
+    mysql -h 127.0.0.1 --port "${MYSQL_PORT:-3306}" --user root -proot --database query_model \
+        --execute 'SELECT * FROM restaurant;'
+    mysql -h 127.0.0.1 --port "${MYSQL_PORT:-3306}" --user root -proot --database query_model \
+        --execute 'SELECT * FROM restaurant_item;'
+    ```
 
 ### Environment variables
 
-環境変数を設定することで Docker Compose で起動するコンテナのポートを変更することができる
+環境変数を設定することで Docker Compose で起動するコンテナの設定を変えることができる
 
 | Name | 説明 | デフォルト値 |
 |-|-|-|
 | LOCALSTACK_GATEWAY_PORT | LocalStack の Gateway のポート番号。AWS のサービスを操作するときに使用するポート。| 4566 |
-| LOCALSTACK_EXTERNAM_SERVICE_PORT_RANGE| LocalStack の外部サービスのポート番号の範囲 | 4510-4559 |
+| LOCALSTACK_EXTERNAM_SERVICE_PORT_RANGE | LocalStack の外部サービスのポート番号の範囲 | 4510-4559 |
+| MYSQL_PORT | MySQL のポート番号 | 3306 |
 | DOCKER_HOST_SOCK | LocalStack で AWS の一部サービスを Docker でエミュレートできるように、マウントするホストの Docker ソケットを指定する | /var/run/docker.sock |
 
 ## Testing
@@ -79,7 +88,7 @@
 ### Unit Test
 
 > [!NOTE]
-> Docker ホストを変えている場合は `DOCKER_HOST` 環境変数を設定する必要がある
+> Docker ホストを変えている場合は `DOCKER_HOST` 環境変数を設定する
 
 ```bash
 cargo nextest --all-features --workspace

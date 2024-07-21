@@ -11,3 +11,4 @@ registries:
   ref: v4.205.0 # renovate: depName=aquaproj/aqua-registry
 packages:
 - name: tfutils/tfenv@v3.0.0
+- name: golang-migrate/migrate@v4.17.1
