@@ -6,14 +6,15 @@ use super::{Item, Restaurant};
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) struct EventModel {
+pub struct EventModel {
     id: String,
     aggregate_id: String,
     payload: Payload,
 }
 
 impl EventModel {
-    pub(crate) fn new(id: &Id<Event>, aggregate_id: &Id<Aggregate>, payload: EventPayload) -> Self {
+    #[must_use]
+    pub fn new(id: &Id<Event>, aggregate_id: &Id<Aggregate>, payload: EventPayload) -> Self {
         Self {
             id: id.to_string(),
             aggregate_id: aggregate_id.to_string(),
@@ -21,7 +22,23 @@ impl EventModel {
         }
     }
 
-    pub(crate) fn to_item<T: From<serde_dynamo::Item>>(&self) -> Result<T, Error> {
+    #[must_use]
+    pub fn id(&self) -> &str {
+        &self.id
+    }
+
+    #[must_use]
+    pub fn aggregate_id(&self) -> &str {
+        &self.aggregate_id
+    }
+
+    #[must_use]
+    pub fn payload(&self) -> &Payload {
+        &self.payload
+    }
+
+    /// # Errors
+    pub fn to_item<T: From<serde_dynamo::Item>>(&self) -> Result<T, Error> {
         Ok(serde_dynamo::to_item(self)?)
     }
 
@@ -41,7 +58,7 @@ impl EventModel {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Payload {
+pub enum Payload {
     AggregateCreatedV1(Restaurant),
     ItemsAddedV1(Vec<Item>),
     ItemsRemovedV1(Vec<String>),

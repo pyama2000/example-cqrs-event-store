@@ -1,8 +1,17 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Restaurant {
+pub enum Restaurant {
     V1 { id: String, name: String },
+}
+
+impl Restaurant {
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Restaurant::V1 { name, .. } => name,
+        }
+    }
 }
 
 impl From<kernel::Restaurant> for Restaurant {
@@ -15,13 +24,43 @@ impl From<kernel::Restaurant> for Restaurant {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Item {
+pub enum Item {
     V1 {
         id: String,
         name: String,
         price: Price,
         category: ItemCategory,
     },
+}
+
+impl Item {
+    #[must_use]
+    pub fn id(&self) -> &str {
+        match self {
+            Item::V1 { id, .. } => id,
+        }
+    }
+
+    #[must_use]
+    pub fn name(&self) -> &str {
+        match self {
+            Item::V1 { name, .. } => name,
+        }
+    }
+
+    #[must_use]
+    pub fn price(&self) -> &Price {
+        match self {
+            Item::V1 { price, .. } => price,
+        }
+    }
+
+    #[must_use]
+    pub fn category(&self) -> &ItemCategory {
+        match self {
+            Item::V1 { category, .. } => category,
+        }
+    }
 }
 
 impl From<kernel::Item> for Item {
@@ -36,8 +75,17 @@ impl From<kernel::Item> for Item {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Price {
+pub enum Price {
     Yen(u64),
+}
+
+impl Price {
+    #[must_use]
+    pub fn value(&self) -> u64 {
+        match self {
+            Self::Yen(v) => *v
+        }
+    }
 }
 
 impl From<kernel::Price> for Price {
@@ -49,7 +97,7 @@ impl From<kernel::Price> for Price {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum ItemCategory {
+pub enum ItemCategory {
     Food,
     Drink,
     Other(String),
