@@ -56,7 +56,6 @@ services:
       TF_VAR_aws_service_endpoint: "http://localstack:${LOCALSTACK_GATEWAY_PORT:-4566}"
     volumes:
       - terraform-volume:/terraform
-      - /terraform/state
     command: ["apply", "-auto-approve"]
     depends_on:
       localstack:
@@ -155,6 +154,22 @@ services:
       terraform-apply:
         condition: service_completed_successfully
       query-model-mapper-build:
+        condition: service_completed_successfully
+  terraform-apply-migration:
+    image: hashicorp/terraform:1.9.2
+    working_dir: /terraform
+    environment:
+      TF_VAR_aws_service_endpoint: "http://localstack:${LOCALSTACK_GATEWAY_PORT:-4566}"
+      TF_VAR_should_migrate_dynamodb_table: true
+    volumes:
+      - terraform-volume:/terraform
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      localstack:
+        condition: service_started
+      terraform-init:
+        condition: service_completed_successfully
+      query-model-mapper-deploy:
         condition: service_completed_successfully
 volumes:
   terraform-volume:
