@@ -187,8 +187,7 @@ mod tests {
         AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ProvisionedThroughput,
     };
     use kernel::{
-        Aggregate, CommandProcessor, Event, EventPayload, Id, Item, ItemCategory, KernelError,
-        Price, Restaurant,
+        Aggregate, CommandProcessor, Event, EventPayload, Id, Item, KernelError, Price, Restaurant,
     };
     use testcontainers::runners::AsyncRunner;
     use testcontainers::ContainerAsync;
@@ -441,18 +440,8 @@ mod tests {
                     aggregate_id.clone(),
                     Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![
-                        Item::new(
-                            item_id.clone(),
-                            ITEM_NAME.to_string(),
-                            Price::Yen(1000),
-                            ItemCategory::Food,
-                        ),
-                        Item::new(
-                            item_id.clone(),
-                            ITEM_NAME.to_string(),
-                            Price::Yen(1000),
-                            ItemCategory::Drink,
-                        ),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
                     ],
                     2,
                 ))],
@@ -463,18 +452,8 @@ mod tests {
                 aggregate_id.clone(),
                 Restaurant::new(RESTAURANT_NAME.to_string()),
                 vec![
-                    Item::new(
-                        item_id.clone(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
-                    ),
-                    Item::new(
-                        item_id.clone(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Drink,
-                    ),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
                 ],
                 2,
             ),
@@ -579,7 +558,6 @@ mod tests {
                     item_id.clone(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )],
                 2,
             ),
@@ -589,7 +567,6 @@ mod tests {
                     item_id.clone(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )]),
             )],
             expected_aggregate_models: vec![AggregateModel::new(Aggregate::new(
@@ -599,7 +576,6 @@ mod tests {
                     item_id.clone(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )],
                 2,
             ))],
@@ -610,7 +586,6 @@ mod tests {
                     item_id.clone(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )]),
             )],
         }];
@@ -698,7 +673,6 @@ mod tests {
                         item_id.clone(),
                         ITEM_NAME.to_string(),
                         Price::Yen(1000),
-                        ItemCategory::Food,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -720,7 +694,6 @@ mod tests {
                         item_id.clone(),
                         ITEM_NAME.to_string(),
                         Price::Yen(1000),
-                        ItemCategory::Food,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -749,7 +722,6 @@ mod tests {
                         item_id.clone(),
                         ITEM_NAME.to_string(),
                         Price::Yen(1000),
-                        ItemCategory::Food,
                     )]),
                 )],
                 assert: |name, actual| {

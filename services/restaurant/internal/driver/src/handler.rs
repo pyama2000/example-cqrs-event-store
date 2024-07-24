@@ -68,7 +68,6 @@ pub(crate) struct AddItemsRequest {
 pub(crate) struct Item {
     name: String,
     price: Price,
-    category: ItemCategory,
 }
 
 impl From<Item> for app::Item {
@@ -76,10 +75,9 @@ impl From<Item> for app::Item {
         Item {
             name,
             price,
-            category,
         }: Item,
     ) -> Self {
-        Self::new(name, price.into(), category.into())
+        Self::new(name, price.into())
     }
 }
 
@@ -100,33 +98,6 @@ impl From<app::Price> for Price {
     fn from(value: app::Price) -> Self {
         match value {
             app::Price::Yen(v) => Self::Yen(v),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ItemCategory {
-    Food,
-    Drink,
-    Other(String),
-}
-
-impl From<ItemCategory> for app::ItemCategory {
-    fn from(value: ItemCategory) -> Self {
-        match value {
-            ItemCategory::Food => Self::Food,
-            ItemCategory::Drink => Self::Drink,
-            ItemCategory::Other(v) => Self::Other(v),
-        }
-    }
-}
-
-impl From<app::ItemCategory> for ItemCategory {
-    fn from(value: app::ItemCategory) -> Self {
-        match value {
-            app::ItemCategory::Food => Self::Food,
-            app::ItemCategory::Drink => Self::Drink,
-            app::ItemCategory::Other(v) => Self::Other(v),
         }
     }
 }
@@ -247,7 +218,6 @@ pub struct ListItemsItem {
     id: String,
     name: String,
     price: Price,
-    category: ItemCategory,
 }
 
 pub(crate) async fn list_items<C, Q>(
@@ -269,7 +239,6 @@ where
                     id: id.to_string(),
                     name: item.name().to_string(),
                     price: item.price().clone().into(),
-                    category: item.category().clone().into(),
                 })
                 .collect();
             (StatusCode::OK, Json(ListItemsResponse { items })).into_response()

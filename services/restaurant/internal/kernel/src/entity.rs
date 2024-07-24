@@ -23,17 +23,15 @@ pub struct Item {
     id: Id<Item>,
     name: String,
     price: Price,
-    category: ItemCategory,
 }
 
 impl Item {
     #[must_use]
-    pub fn new(id: Id<Item>, name: String, price: Price, category: ItemCategory) -> Self {
+    pub fn new(id: Id<Item>, name: String, price: Price) -> Self {
         Self {
             id,
             name,
             price,
-            category,
         }
     }
 
@@ -51,19 +49,6 @@ impl Item {
     pub fn price(&self) -> &Price {
         &self.price
     }
-
-    #[must_use]
-    pub fn category(&self) -> &ItemCategory {
-        &self.category
-    }
-}
-
-/// 商品のカテゴリー
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ItemCategory {
-    Food,
-    Drink,
-    Other(String),
 }
 
 /// 商品の価格

@@ -105,8 +105,7 @@ impl Aggregate {
 #[cfg(test)]
 mod tests {
     use crate::{
-        Aggregate, Command, Event, EventPayload, Id, Item, ItemCategory, KernelError, Price,
-        Restaurant,
+        Aggregate, Command, Event, EventPayload, Id, Item, KernelError, Price, Restaurant,
     };
 
     const RESTAURANT_NAME: &str = "テスト店舗";
@@ -160,7 +159,6 @@ mod tests {
                     item_id.clone(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )]),
                 expected: (
                     Aggregate::new(
@@ -170,7 +168,6 @@ mod tests {
                             item_id.clone(),
                             ITEM_NAME.to_string(),
                             Price::Yen(1000),
-                            ItemCategory::Food,
                         )],
                         2,
                     ),
@@ -180,7 +177,6 @@ mod tests {
                             item_id.clone(),
                             ITEM_NAME.to_string(),
                             Price::Yen(1000),
-                            ItemCategory::Food,
                         )]),
                     )],
                 ),
@@ -195,54 +191,24 @@ mod tests {
                     1,
                 ),
                 command: Command::AddItems(vec![
-                    Item::new(
-                        item_id.clone(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
-                    ),
-                    Item::new(
-                        item_id.clone(),
-                        "商品2".to_string(),
-                        Price::Yen(500),
-                        ItemCategory::Drink,
-                    ),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                    Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
                 ]),
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
                         Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![
-                            Item::new(
-                                item_id.clone(),
-                                ITEM_NAME.to_string(),
-                                Price::Yen(1000),
-                                ItemCategory::Food,
-                            ),
-                            Item::new(
-                                item_id.clone(),
-                                "商品2".to_string(),
-                                Price::Yen(500),
-                                ItemCategory::Drink,
-                            ),
+                            Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                            Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
                         ],
                         2,
                     ),
                     vec![Event::new(
                         Id::generate(),
                         EventPayload::ItemsAdded(vec![
-                            Item::new(
-                                item_id.clone(),
-                                ITEM_NAME.to_string(),
-                                Price::Yen(1000),
-                                ItemCategory::Food,
-                            ),
-                            Item::new(
-                                item_id.clone(),
-                                "商品2".to_string(),
-                                Price::Yen(500),
-                                ItemCategory::Drink,
-                            ),
+                            Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                            Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
                         ]),
                     )],
                 ),
@@ -256,7 +222,6 @@ mod tests {
                         item_id.clone(),
                         ITEM_NAME.to_string(),
                         Price::Yen(1000),
-                        ItemCategory::Food,
                     )],
                     2,
                 ),
@@ -264,25 +229,14 @@ mod tests {
                     item_id.clone(),
                     "商品2".to_string(),
                     Price::Yen(500),
-                    ItemCategory::Drink,
                 )]),
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
                         Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![
-                            Item::new(
-                                item_id.clone(),
-                                ITEM_NAME.to_string(),
-                                Price::Yen(1000),
-                                ItemCategory::Food,
-                            ),
-                            Item::new(
-                                item_id.clone(),
-                                "商品2".to_string(),
-                                Price::Yen(500),
-                                ItemCategory::Drink,
-                            ),
+                            Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                            Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
                         ],
                         3,
                     ),
@@ -292,7 +246,6 @@ mod tests {
                             item_id.clone(),
                             "商品2".to_string(),
                             Price::Yen(500),
-                            ItemCategory::Drink,
                         )]),
                     )],
                 ),
@@ -303,18 +256,8 @@ mod tests {
                     aggregate_id.clone(),
                     Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![
-                        Item::new(
-                            item_id.clone(),
-                            ITEM_NAME.to_string(),
-                            Price::Yen(1000),
-                            ItemCategory::Food,
-                        ),
-                        Item::new(
-                            item_id.clone(),
-                            "商品2".to_string(),
-                            Price::Yen(500),
-                            ItemCategory::Drink,
-                        ),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                        Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
                     ],
                     2,
                 ),
@@ -391,7 +334,6 @@ mod tests {
                     Id::generate(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )]),
                 assert: |name, actual| {
                     assert!(
@@ -426,18 +368,8 @@ mod tests {
                     version: 1,
                 },
                 command: Command::AddItems(vec![
-                    Item::new(
-                        Id::generate(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
-                    ),
-                    Item::new(
-                        Id::generate(),
-                        String::new(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
-                    ),
+                    Item::new(Id::generate(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                    Item::new(Id::generate(), String::new(), Price::Yen(1000)),
                 ]),
                 assert: |name, actual| {
                     assert!(
@@ -459,7 +391,6 @@ mod tests {
                     Id::generate(),
                     ITEM_NAME.to_string(),
                     Price::Yen(1000),
-                    ItemCategory::Food,
                 )]),
                 assert: |name, actual| {
                     assert!(

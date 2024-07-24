@@ -28,7 +28,6 @@ pub enum Item {
         id: String,
         name: String,
         price: Price,
-        category: ItemCategory,
     },
 }
 
@@ -53,13 +52,6 @@ impl Item {
             Item::V1 { price, .. } => price,
         }
     }
-
-    #[must_use]
-    pub fn category(&self) -> &ItemCategory {
-        match self {
-            Item::V1 { category, .. } => category,
-        }
-    }
 }
 
 impl From<kernel::Item> for Item {
@@ -68,7 +60,6 @@ impl From<kernel::Item> for Item {
             id: value.id().to_string(),
             name: value.name().to_string(),
             price: value.price().clone().into(),
-            category: value.category().clone().into(),
         }
     }
 }
@@ -91,23 +82,6 @@ impl From<kernel::Price> for Price {
     fn from(value: kernel::Price) -> Self {
         match value {
             kernel::Price::Yen(v) => Self::Yen(v),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ItemCategory {
-    Food,
-    Drink,
-    Other(String),
-}
-
-impl From<kernel::ItemCategory> for ItemCategory {
-    fn from(value: kernel::ItemCategory) -> Self {
-        match value {
-            kernel::ItemCategory::Food => Self::Food,
-            kernel::ItemCategory::Drink => Self::Drink,
-            kernel::ItemCategory::Other(v) => Self::Other(v),
         }
     }
 }

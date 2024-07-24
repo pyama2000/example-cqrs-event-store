@@ -1,3 +1,3 @@
 pub mod command;
 
-pub use command::{Item, ItemCategory, Price, Restaurant};
+pub use command::{Item, Price, Restaurant};

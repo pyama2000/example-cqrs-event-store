@@ -51,9 +51,6 @@ resource "aws_dynamodb_table_item" "aggregate" {
                         "id" : {
                           "S" : "0190d7b2-a2ca-7653-b005-244be7768ba4"
                         },
-                        "category" : {
-                          "S" : "Food"
-                        },
                         "price" : {
                           "M" : {
                             "Yen" : {
@@ -153,9 +150,6 @@ resource "aws_dynamodb_table_item" "item_added" {
                     },
                     "id" : {
                       "S" : "0190d7b2-a2ca-7653-b005-244be7768ba4"
-                    },
-                    "category" : {
-                      "S" : "Food"
                     },
                     "price" : {
                       "M" : {

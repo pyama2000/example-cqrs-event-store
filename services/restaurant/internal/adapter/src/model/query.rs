@@ -32,7 +32,6 @@ impl TryFrom<RestaurantItemModel> for kernel::Item {
             value.item_id.parse()?,
             value.item_name,
             kernel::Price::Yen(value.price),
-            kernel::ItemCategory::Food,
         ))
     }
 }
