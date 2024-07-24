@@ -1,0 +1,27 @@
+[package]
+name = "order"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+adapter = { version = "0.1.0", path = "internal/adapter", optional = true }
+app = { version = "0.1.0", path = "internal/app", optional = true }
+driver = { version = "0.1.0", path = "internal/driver", optional = true }
+kernel = { version = "0.1.0", path = "internal/kernel", optional = true }
+
+[features]
+service = ["adapter", "app", "driver", "kernel"]
+adapter = ["dep:adapter"]
+app = ["dep:app"]
+driver = ["dep:driver"]
+kernel = ["dep:kernel"]
+
+[workspace]
+members = ["internal/*"]
+resolver = "2"
+
+[workspace.dependencies]
+thiserror = "1.0.62"
+
+[workspace.lints.clippy]
+pedantic = "warn"
