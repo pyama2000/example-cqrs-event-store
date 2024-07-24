@@ -7,5 +7,5 @@ pub mod usecase;
 pub use kernel::KernelError;
 
 pub use error::AppError;
-pub use model::{Item, Price, Restaurant};
+pub use model::{Item, Restaurant};
 pub use usecase::{CommandService, CommandUseCase, QueryService, QueryUseCase};

@@ -47,7 +47,7 @@ impl From<Command> for Vec<Event> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Command, Event, EventPayload, Id, Item, Price, Restaurant};
+    use crate::{Command, Event, EventPayload, Id, Item, Restaurant};
 
     #[test]
     fn test_convert_command_into_event() {
@@ -69,14 +69,14 @@ mod tests {
             TestCase {
                 name: "AddItemsコマンドの場合はItemsAddedイベントにのみ変換される",
                 command: Command::AddItems(vec![
-                    Item::new(item_id.clone(), "Food1".to_string(), Price::Yen(1000)),
-                    Item::new(item_id.clone(), "Other1".to_string(), Price::Yen(500)),
+                    Item::new(item_id.clone(), "Food1".to_string(), 1000),
+                    Item::new(item_id.clone(), "Other1".to_string(), 500),
                 ]),
                 expected: vec![Event::new(
                     Id::generate(),
                     EventPayload::ItemsAdded(vec![
-                        Item::new(item_id.clone(), "Food1".to_string(), Price::Yen(1000)),
-                        Item::new(item_id.clone(), "Other1".to_string(), Price::Yen(500)),
+                        Item::new(item_id.clone(), "Food1".to_string(), 1000),
+                        Item::new(item_id.clone(), "Other1".to_string(), 500),
                     ]),
                 )],
             },

@@ -22,17 +22,13 @@ impl Restaurant {
 pub struct Item {
     id: Id<Item>,
     name: String,
-    price: Price,
+    price: u64,
 }
 
 impl Item {
     #[must_use]
-    pub fn new(id: Id<Item>, name: String, price: Price) -> Self {
-        Self {
-            id,
-            name,
-            price,
-        }
+    pub fn new(id: Id<Item>, name: String, price: u64) -> Self {
+        Self { id, name, price }
     }
 
     #[must_use]
@@ -46,13 +42,7 @@ impl Item {
     }
 
     #[must_use]
-    pub fn price(&self) -> &Price {
-        &self.price
+    pub fn price(&self) -> u64 {
+        self.price
     }
-}
-
-/// 商品の価格
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Price {
-    Yen(u64),
 }

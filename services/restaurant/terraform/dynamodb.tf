@@ -52,11 +52,7 @@ resource "aws_dynamodb_table_item" "aggregate" {
                           "S" : "0190d7b2-a2ca-7653-b005-244be7768ba4"
                         },
                         "price" : {
-                          "M" : {
-                            "Yen" : {
-                              "N" : "1000"
-                            }
-                          }
+                          "N" : "1000"
                         }
                       }
                     }
@@ -152,11 +148,7 @@ resource "aws_dynamodb_table_item" "item_added" {
                       "S" : "0190d7b2-a2ca-7653-b005-244be7768ba4"
                     },
                     "price" : {
-                      "M" : {
-                        "Yen" : {
-                          "N" : "1000"
-                        }
-                      }
+                      "N" : "1000"
                     }
                   }
                 }

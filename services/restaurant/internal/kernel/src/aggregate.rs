@@ -104,9 +104,7 @@ impl Aggregate {
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        Aggregate, Command, Event, EventPayload, Id, Item, KernelError, Price, Restaurant,
-    };
+    use crate::{Aggregate, Command, Event, EventPayload, Id, Item, KernelError, Restaurant};
 
     const RESTAURANT_NAME: &str = "テスト店舗";
     const ITEM_NAME: &str = "テスト商品";
@@ -158,17 +156,13 @@ mod tests {
                 command: Command::AddItems(vec![Item::new(
                     item_id.clone(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
+                    1000,
                 )]),
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
                         Restaurant::new(RESTAURANT_NAME.to_string()),
-                        vec![Item::new(
-                            item_id.clone(),
-                            ITEM_NAME.to_string(),
-                            Price::Yen(1000),
-                        )],
+                        vec![Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000)],
                         2,
                     ),
                     vec![Event::new(
@@ -176,7 +170,7 @@ mod tests {
                         EventPayload::ItemsAdded(vec![Item::new(
                             item_id.clone(),
                             ITEM_NAME.to_string(),
-                            Price::Yen(1000),
+                            1000,
                         )]),
                     )],
                 ),
@@ -191,24 +185,24 @@ mod tests {
                     1,
                 ),
                 command: Command::AddItems(vec![
-                    Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                    Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                    Item::new(item_id.clone(), "商品2".to_string(), 500),
                 ]),
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
                         Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![
-                            Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                            Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
+                            Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                            Item::new(item_id.clone(), "商品2".to_string(), 500),
                         ],
                         2,
                     ),
                     vec![Event::new(
                         Id::generate(),
                         EventPayload::ItemsAdded(vec![
-                            Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                            Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
+                            Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                            Item::new(item_id.clone(), "商品2".to_string(), 500),
                         ]),
                     )],
                 ),
@@ -218,25 +212,21 @@ mod tests {
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
                     Restaurant::new(RESTAURANT_NAME.to_string()),
-                    vec![Item::new(
-                        item_id.clone(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                    )],
+                    vec![Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000)],
                     2,
                 ),
                 command: Command::AddItems(vec![Item::new(
                     item_id.clone(),
                     "商品2".to_string(),
-                    Price::Yen(500),
+                    500,
                 )]),
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
                         Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![
-                            Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                            Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
+                            Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                            Item::new(item_id.clone(), "商品2".to_string(), 500),
                         ],
                         3,
                     ),
@@ -245,7 +235,7 @@ mod tests {
                         EventPayload::ItemsAdded(vec![Item::new(
                             item_id.clone(),
                             "商品2".to_string(),
-                            Price::Yen(500),
+                            500,
                         )]),
                     )],
                 ),
@@ -256,8 +246,8 @@ mod tests {
                     aggregate_id.clone(),
                     Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![
-                        Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                        Item::new(item_id.clone(), "商品2".to_string(), Price::Yen(500)),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                        Item::new(item_id.clone(), "商品2".to_string(), 500),
                     ],
                     2,
                 ),
@@ -333,7 +323,7 @@ mod tests {
                 command: Command::AddItems(vec![Item::new(
                     Id::generate(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
+                    1000,
                 )]),
                 assert: |name, actual| {
                     assert!(
@@ -368,8 +358,8 @@ mod tests {
                     version: 1,
                 },
                 command: Command::AddItems(vec![
-                    Item::new(Id::generate(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                    Item::new(Id::generate(), String::new(), Price::Yen(1000)),
+                    Item::new(Id::generate(), ITEM_NAME.to_string(), 1000),
+                    Item::new(Id::generate(), String::new(), 1000),
                 ]),
                 assert: |name, actual| {
                     assert!(
@@ -390,7 +380,7 @@ mod tests {
                 command: Command::AddItems(vec![Item::new(
                     Id::generate(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
+                    1000,
                 )]),
                 assert: |name, actual| {
                     assert!(

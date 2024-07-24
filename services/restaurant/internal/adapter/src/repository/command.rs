@@ -187,7 +187,7 @@ mod tests {
         AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ProvisionedThroughput,
     };
     use kernel::{
-        Aggregate, CommandProcessor, Event, EventPayload, Id, Item, KernelError, Price, Restaurant,
+        Aggregate, CommandProcessor, Event, EventPayload, Id, Item, KernelError, Restaurant,
     };
     use testcontainers::runners::AsyncRunner;
     use testcontainers::ContainerAsync;
@@ -440,8 +440,8 @@ mod tests {
                     aggregate_id.clone(),
                     Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![
-                        Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                        Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
                     ],
                     2,
                 ))],
@@ -452,8 +452,8 @@ mod tests {
                 aggregate_id.clone(),
                 Restaurant::new(RESTAURANT_NAME.to_string()),
                 vec![
-                    Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
-                    Item::new(item_id.clone(), ITEM_NAME.to_string(), Price::Yen(1000)),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
                 ],
                 2,
             ),
@@ -554,11 +554,7 @@ mod tests {
             aggregate: Aggregate::new(
                 aggregate_id.clone(),
                 Restaurant::new(RESTAURANT_NAME.to_string()),
-                vec![Item::new(
-                    item_id.clone(),
-                    ITEM_NAME.to_string(),
-                    Price::Yen(1000),
-                )],
+                vec![Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000)],
                 2,
             ),
             events: vec![Event::new(
@@ -566,17 +562,13 @@ mod tests {
                 EventPayload::ItemsAdded(vec![Item::new(
                     item_id.clone(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
+                    1000,
                 )]),
             )],
             expected_aggregate_models: vec![AggregateModel::new(Aggregate::new(
                 aggregate_id.clone(),
                 Restaurant::new(RESTAURANT_NAME.to_string()),
-                vec![Item::new(
-                    item_id.clone(),
-                    ITEM_NAME.to_string(),
-                    Price::Yen(1000),
-                )],
+                vec![Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000)],
                 2,
             ))],
             expected_event_models: vec![EventModel::new(
@@ -585,7 +577,7 @@ mod tests {
                 EventPayload::ItemsAdded(vec![Item::new(
                     item_id.clone(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
+                    1000,
                 )]),
             )],
         }];
@@ -672,7 +664,7 @@ mod tests {
                     EventPayload::ItemsAdded(vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
-                        Price::Yen(1000),
+                        1000,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -693,7 +685,7 @@ mod tests {
                     EventPayload::ItemsAdded(vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
-                        Price::Yen(1000),
+                        1000,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -721,7 +713,7 @@ mod tests {
                     EventPayload::ItemsAdded(vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
-                        Price::Yen(1000),
+                        1000,
                     )]),
                 )],
                 assert: |name, actual| {

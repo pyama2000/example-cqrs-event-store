@@ -27,7 +27,7 @@ pub enum Item {
     V1 {
         id: String,
         name: String,
-        price: Price,
+        price: u64,
     },
 }
 
@@ -47,9 +47,9 @@ impl Item {
     }
 
     #[must_use]
-    pub fn price(&self) -> &Price {
+    pub fn price(&self) -> u64 {
         match self {
-            Item::V1 { price, .. } => price,
+            Item::V1 { price, .. } => *price,
         }
     }
 }
@@ -59,29 +59,7 @@ impl From<kernel::Item> for Item {
         Self::V1 {
             id: value.id().to_string(),
             name: value.name().to_string(),
-            price: value.price().clone().into(),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Price {
-    Yen(u64),
-}
-
-impl Price {
-    #[must_use]
-    pub fn value(&self) -> u64 {
-        match self {
-            Self::Yen(v) => *v,
-        }
-    }
-}
-
-impl From<kernel::Price> for Price {
-    fn from(value: kernel::Price) -> Self {
-        match value {
-            kernel::Price::Yen(v) => Self::Yen(v),
+            price: value.price(),
         }
     }
 }

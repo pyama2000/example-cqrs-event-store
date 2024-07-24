@@ -64,13 +64,9 @@ impl TryInto<Aggregate> for AggregateModel {
         let results: Vec<_> = items
             .into_iter()
             .map(|x| match x {
-                Item::V1 { id, name, price } => Ok::<kernel::Item, Self::Error>(kernel::Item::new(
-                    id.parse()?,
-                    name,
-                    match price {
-                        crate::model::command::entity::Price::Yen(v) => kernel::Price::Yen(v),
-                    },
-                )),
+                Item::V1 { id, name, price } => {
+                    Ok::<kernel::Item, Self::Error>(kernel::Item::new(id.parse()?, name, price))
+                }
             })
             .collect();
         if results.iter().any(Result::is_err) {

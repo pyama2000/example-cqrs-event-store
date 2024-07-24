@@ -34,12 +34,12 @@ impl From<kernel::Restaurant> for Restaurant {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Item {
     name: String,
-    price: Price,
+    price: u64,
 }
 
 impl Item {
     #[must_use]
-    pub fn new(name: String, price: Price) -> Self {
+    pub fn new(name: String, price: u64) -> Self {
         Self { name, price }
     }
 
@@ -49,14 +49,14 @@ impl Item {
     }
 
     #[must_use]
-    pub fn price(&self) -> &Price {
-        &self.price
+    pub fn price(&self) -> u64 {
+        self.price
     }
 }
 
 impl From<Item> for kernel::Item {
     fn from(value: Item) -> Self {
-        Self::new(Id::generate(), value.name, value.price.into())
+        Self::new(Id::generate(), value.name, value.price)
     }
 }
 
@@ -64,28 +64,7 @@ impl From<kernel::Item> for Item {
     fn from(value: kernel::Item) -> Self {
         Self {
             name: value.name().to_string(),
-            price: value.price().clone().into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Price {
-    Yen(u64),
-}
-
-impl From<Price> for kernel::Price {
-    fn from(value: Price) -> Self {
-        match value {
-            Price::Yen(x) => Self::Yen(x),
-        }
-    }
-}
-
-impl From<kernel::Price> for Price {
-    fn from(value: kernel::Price) -> Self {
-        match value {
-            kernel::Price::Yen(x) => Self::Yen(x),
+            price: value.price(),
         }
     }
 }

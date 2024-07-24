@@ -10,7 +10,7 @@ pub mod processor;
 
 pub use aggregate::Aggregate;
 pub use command::Command;
-pub use entity::{Item, Price, Restaurant};
+pub use entity::{Item, Restaurant};
 pub use error::KernelError;
 pub use event::{Event, EventPayload};
 pub use id::Id;
