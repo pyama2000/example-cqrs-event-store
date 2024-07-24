@@ -1,5 +1,5 @@
-use adapter::{dynamodb, CommandRepository};
-use app::CommandUseCase;
+use adapter::{dynamodb, CommandRepository, QueryRepository};
+use app::{CommandUseCase, QueryUseCase};
 use driver::Server;
 
 #[tokio::main]
@@ -10,9 +10,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
     ))
     .await;
 
-    let repository = CommandRepository::new(dynamodb);
-    let usecase = CommandUseCase::new(repository);
-    let server = Server::new("0.0.0.0:8080", usecase.into());
+    let server = Server::new(
+        "0.0.0.0:8080",
+        CommandUseCase::new(CommandRepository::new(dynamodb)),
+        QueryUseCase::new(QueryRepository),
+    );
     server.run().await?;
     Ok(())
 }

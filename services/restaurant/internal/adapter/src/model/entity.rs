@@ -83,7 +83,7 @@ impl Price {
     #[must_use]
     pub fn value(&self) -> u64 {
         match self {
-            Self::Yen(v) => *v
+            Self::Yen(v) => *v,
         }
     }
 }
