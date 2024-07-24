@@ -76,10 +76,6 @@ pub enum OrderStatus {
     DeliveryPersonPickingUp {
         delivery_person_id: Id<DeliveryPerson>,
     },
-    /// 配達員が注文をユーザーに向けて配達している状態
-    OnTheWay {
-        delivery_person_id: Id<DeliveryPerson>,
-    },
     /// 配達員が注文をユーザーに届け、ユーザーが受け取った状態
     Delivered,
     /// ユーザー、飲食店、またはシステムによって注文がキャンセルされた状態
