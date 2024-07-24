@@ -2,19 +2,13 @@ use crate::Id;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Restaurant {
-    id: Id<Restaurant>,
     name: String,
 }
 
 impl Restaurant {
     #[must_use]
-    pub fn new(id: Id<Restaurant>, name: String) -> Self {
-        Self { id, name }
-    }
-
-    #[must_use]
-    pub fn id(&self) -> &Id<Restaurant> {
-        &self.id
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 
     #[must_use]

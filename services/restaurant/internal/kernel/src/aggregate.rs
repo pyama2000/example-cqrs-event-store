@@ -122,32 +122,27 @@ mod tests {
             expected: (Aggregate, Vec<Event>),
         }
         let aggregate_id: Id<Aggregate> = Id::generate();
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let item_id: Id<Item> = Id::generate();
         let tests = [
             TestCase {
                 name: "未作成の集約に集約作成コマンド実行時は集約と集約作成イベントが返る",
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(Id::generate(), String::default()),
+                    Restaurant::new(String::default()),
                     Vec::default(),
                     u64::default(),
                 ),
-                command: Command::CrateAggregate(Restaurant::new(
-                    restaurant_id.clone(),
-                    RESTAURANT_NAME.to_string(),
-                )),
+                command: Command::CrateAggregate(Restaurant::new(RESTAURANT_NAME.to_string())),
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                        Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![],
                         1,
                     ),
                     vec![Event::new(
                         Id::generate(),
                         EventPayload::AggregateCreated(Restaurant::new(
-                            restaurant_id.clone(),
                             RESTAURANT_NAME.to_string(),
                         )),
                     )],
@@ -157,7 +152,7 @@ mod tests {
                 name: "作成済集約に商品追加コマンド実行時は集約に商品が追加され、イベントが返る",
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![],
                     1,
                 ),
@@ -170,7 +165,7 @@ mod tests {
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                        Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![Item::new(
                             item_id.clone(),
                             ITEM_NAME.to_string(),
@@ -195,7 +190,7 @@ mod tests {
                     "作成済集約に複数商品の追加コマンド実行時は集約に商品が追加され、イベントが返る",
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![],
                     1,
                 ),
@@ -216,7 +211,7 @@ mod tests {
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                        Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![
                             Item::new(
                                 item_id.clone(),
@@ -256,7 +251,7 @@ mod tests {
                 name: "すでに商品のある集約に商品追加コマンド実行時は集約に商品が追加される",
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
@@ -274,7 +269,7 @@ mod tests {
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                        Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![
                             Item::new(
                                 item_id.clone(),
@@ -306,7 +301,7 @@ mod tests {
                 name: "すでに商品のある集約に商品削除コマンド実行時は集約から商品が削除される",
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![
                         Item::new(
                             item_id.clone(),
@@ -327,7 +322,7 @@ mod tests {
                 expected: (
                     Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                        Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![],
                         3,
                     ),
@@ -372,14 +367,11 @@ mod tests {
                     "作成済みの集約に集約作成コマンドを実行時はAggregateAlreadyCreatedエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), RESTAURANT_NAME.to_string()),
+                    restaurant: Restaurant::new(RESTAURANT_NAME.to_string()),
                     items: vec![],
                     version: 1,
                 },
-                command: Command::CrateAggregate(Restaurant::new(
-                    Id::generate(),
-                    RESTAURANT_NAME.to_string(),
-                )),
+                command: Command::CrateAggregate(Restaurant::new(RESTAURANT_NAME.to_string())),
                 assert: |name, actual| {
                     assert!(
                         matches!(actual, Err(KernelError::AggregateAlreadyCreated)),
@@ -391,7 +383,7 @@ mod tests {
                 name: "未作成集約に集約作成コマンド以外を実行時はAggregateNotCreatedエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), String::new()),
+                    restaurant: Restaurant::new(String::new()),
                     items: vec![],
                     version: 0,
                 },
@@ -413,11 +405,11 @@ mod tests {
                     "集約作成コマンド実行時に店名が空文字の場合はInvaildRestaurantNameエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), String::new()),
+                    restaurant: Restaurant::new(String::new()),
                     items: vec![],
                     version: 0,
                 },
-                command: Command::CrateAggregate(Restaurant::new(Id::generate(), String::new())),
+                command: Command::CrateAggregate(Restaurant::new(String::new())),
                 assert: |name, actual| {
                     assert!(
                         matches!(actual, Err(KernelError::InvalidRestaurantName)),
@@ -429,7 +421,7 @@ mod tests {
                 name: "商品追加コマンドを実行時に商品名が空文字の場合はInvalidItemNameエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), RESTAURANT_NAME.to_string()),
+                    restaurant: Restaurant::new(RESTAURANT_NAME.to_string()),
                     items: vec![],
                     version: 1,
                 },
@@ -459,7 +451,7 @@ mod tests {
                     "バージョンが最大値の集約にコマンド実行時にAggregateVersionOverflowエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), RESTAURANT_NAME.to_string()),
+                    restaurant: Restaurant::new(RESTAURANT_NAME.to_string()),
                     items: vec![],
                     version: u64::MAX,
                 },
@@ -480,7 +472,7 @@ mod tests {
                 name: "配列が空な商品追加コマンド実行時にEntitiesIsEmptyエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), RESTAURANT_NAME.to_string()),
+                    restaurant: Restaurant::new(RESTAURANT_NAME.to_string()),
                     items: vec![],
                     version: 1,
                 },
@@ -496,7 +488,7 @@ mod tests {
                 name: "配列が空な商品削除コマンド実行時にEntitiesIsEmptyエラーが返る",
                 aggregate: Aggregate {
                     id: Id::generate(),
-                    restaurant: Restaurant::new(Id::generate(), RESTAURANT_NAME.to_string()),
+                    restaurant: Restaurant::new(RESTAURANT_NAME.to_string()),
                     items: vec![],
                     version: 1,
                 },

@@ -7,7 +7,7 @@ use crate::{AppError, Item, Restaurant};
 pub trait QueryService {
     fn list_restaurants(
         &self,
-    ) -> impl Future<Output = Result<Vec<(Id<kernel::Restaurant>, Restaurant)>, AppError>> + Send;
+    ) -> impl Future<Output = Result<Vec<(Id<Aggregate>, Restaurant)>, AppError>> + Send;
 
     fn list_items(
         &self,
@@ -27,13 +27,11 @@ impl<P: QueryProcessor> QueryUseCase<P> {
 }
 
 impl<P: QueryProcessor + Send + Sync + 'static> QueryService for QueryUseCase<P> {
-    async fn list_restaurants(
-        &self,
-    ) -> Result<Vec<(Id<kernel::Restaurant>, Restaurant)>, AppError> {
-        let restaurants = self.processor.list_restaurants().await?;
-        Ok(restaurants
+    async fn list_restaurants(&self) -> Result<Vec<(Id<Aggregate>, Restaurant)>, AppError> {
+        let restaurant_by_aggregate_id_list = self.processor.list_restaurants().await?;
+        Ok(restaurant_by_aggregate_id_list
             .into_iter()
-            .map(|x| (x.id().clone(), x.into()))
+            .map(|(id, r)| (id, r.into()))
             .collect())
     }
 

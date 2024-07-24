@@ -35,9 +35,6 @@ resource "aws_dynamodb_table_item" "aggregate" {
                     "name" : {
                       "S" : "インドカレー 新宿店"
                     },
-                    "id" : {
-                      "S" : "0190d7b2-3940-7f92-9f87-000a56043de9"
-                    }
                   }
                 }
               }
@@ -121,9 +118,6 @@ resource "aws_dynamodb_table_item" "restaurant_created_event" {
                 "name" : {
                   "S" : "インドカレー 新宿店"
                 },
-                "id" : {
-                  "S" : "0190d7b2-3940-7f92-9f87-000a56043de9"
-                }
               }
             }
           }

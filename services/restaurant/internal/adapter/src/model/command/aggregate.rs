@@ -59,7 +59,7 @@ impl TryInto<Aggregate> for AggregateModel {
             Payload::V1 { restaurant, items } => (restaurant, items),
         };
         let restaurant = match restaurant {
-            Restaurant::V1 { id, name } => kernel::Restaurant::new(id.parse()?, name),
+            Restaurant::V1 { name } => kernel::Restaurant::new(name),
         };
         let results: Vec<_> = items
             .into_iter()
@@ -76,8 +76,12 @@ impl TryInto<Aggregate> for AggregateModel {
                         crate::model::command::entity::Price::Yen(v) => kernel::Price::Yen(v),
                     },
                     match category {
-                        crate::model::command::entity::ItemCategory::Food => kernel::ItemCategory::Food,
-                        crate::model::command::entity::ItemCategory::Drink => kernel::ItemCategory::Drink,
+                        crate::model::command::entity::ItemCategory::Food => {
+                            kernel::ItemCategory::Food
+                        }
+                        crate::model::command::entity::ItemCategory::Drink => {
+                            kernel::ItemCategory::Drink
+                        }
                         crate::model::command::entity::ItemCategory::Other(v) => {
                             kernel::ItemCategory::Other(v)
                         }

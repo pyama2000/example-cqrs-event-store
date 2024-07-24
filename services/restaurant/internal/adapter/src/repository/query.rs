@@ -16,14 +16,20 @@ impl QueryRepository {
 }
 
 impl QueryProcessor for QueryRepository {
-    async fn list_restaurants(&self) -> Result<Vec<Restaurant>, KernelError> {
+    async fn list_restaurants(&self) -> Result<Vec<(Id<Aggregate>, Restaurant)>, KernelError> {
         let models: Vec<RestaurantModel> =
             sqlx::query_as("SELECT aggregate_id, restaurant_name FROM restaurant")
                 .fetch_all(&self.mysql)
                 .await
                 .map_err(|e| KernelError::Unknown(e.into()))?;
-        let results: Vec<Result<Restaurant, _>> =
-            models.into_iter().map(TryInto::try_into).collect();
+        let results: Vec<Result<(Id<Aggregate>, Restaurant), _>> = models
+            .into_iter()
+            .map(|x| {
+                let aggregate_id = x.aggregate_id().parse()?;
+                let restaurant = Restaurant::new(x.restaurant_name().to_string());
+                Ok::<_, KernelError>((aggregate_id, restaurant))
+            })
+            .collect();
         if results.iter().any(Result::is_err) {
             return Err(KernelError::Unknown("convert restaurant model".into()));
         }

@@ -22,8 +22,9 @@ pub trait CommandProcessor {
 
 #[cfg_attr(feature = "mockall", mockall::automock)]
 pub trait QueryProcessor {
-    fn list_restaurants(&self)
-        -> impl Future<Output = Result<Vec<Restaurant>, KernelError>> + Send;
+    fn list_restaurants(
+        &self,
+    ) -> impl Future<Output = Result<Vec<(Id<Aggregate>, Restaurant)>, KernelError>> + Send;
 
     fn list_items(
         &self,

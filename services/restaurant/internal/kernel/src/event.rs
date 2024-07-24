@@ -56,21 +56,14 @@ mod tests {
             command: Command,
             expected: Vec<Event>,
         }
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let item_id: Id<Item> = Id::generate();
         let tests = [
             TestCase {
                 name: "CreateRestaurantコマンドの場合はRestaurantCreatedイベントにのみ変換される",
-                command: Command::CrateAggregate(Restaurant::new(
-                    restaurant_id.clone(),
-                    "テスト店舗".to_string(),
-                )),
+                command: Command::CrateAggregate(Restaurant::new("テスト店舗".to_string())),
                 expected: vec![Event::new(
                     Id::generate(),
-                    EventPayload::AggregateCreated(Restaurant::new(
-                        restaurant_id.clone(),
-                        "テスト店舗".to_string(),
-                    )),
+                    EventPayload::AggregateCreated(Restaurant::new("テスト店舗".to_string())),
                 )],
             },
             TestCase {

@@ -19,7 +19,7 @@ impl Restaurant {
 
 impl From<Restaurant> for kernel::Restaurant {
     fn from(value: Restaurant) -> Self {
-        Self::new(Id::generate(), value.name)
+        Self::new(value.name)
     }
 }
 
