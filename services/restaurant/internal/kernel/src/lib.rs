@@ -14,4 +14,4 @@ pub use entity::{Item, ItemCategory, Price, Restaurant};
 pub use error::KernelError;
 pub use event::{Event, EventPayload};
 pub use id::Id;
-pub use processor::CommandProcessor;
+pub use processor::{CommandProcessor, QueryProcessor};

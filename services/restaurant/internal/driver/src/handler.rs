@@ -1,11 +1,13 @@
 use std::sync::Arc;
 
-use app::{AppError, CommandService, Restaurant};
+use app::{AppError, CommandService, QueryService};
 use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+
+use crate::server::ServiceState;
 
 fn handling_app_error(err: AppError) -> StatusCode {
     match err {
@@ -35,17 +37,21 @@ pub(crate) struct CreateRestaurantResponse {
     id: String,
 }
 
-pub(crate) async fn create_restaurant<C>(
-    State(service): State<Arc<C>>,
+pub(crate) async fn create_restaurant<C, Q>(
+    State(service): State<Arc<ServiceState<C, Q>>>,
     Json(CreateRestaurantRequest { name }): Json<CreateRestaurantRequest>,
 ) -> impl IntoResponse
 where
     C: CommandService,
+    Q: QueryService,
 {
-    match service.create_restaurant(Restaurant::new(name)).await {
+    match service
+        .command
+        .create_restaurant(app::Restaurant::new(name))
+        .await
+    {
         Ok(id) => {
             let res = CreateRestaurantResponse { id: id.to_string() };
-
             (StatusCode::ACCEPTED, Json(res)).into_response()
         }
         Err(e) => handling_app_error(e).into_response(),
@@ -77,7 +83,7 @@ impl From<Item> for app::Item {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum Price {
     Yen(u64),
 }
@@ -90,7 +96,15 @@ impl From<Price> for app::Price {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+impl From<app::Price> for Price {
+    fn from(value: app::Price) -> Self {
+        match value {
+            app::Price::Yen(v) => Self::Yen(v),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) enum ItemCategory {
     Food,
     Drink,
@@ -107,9 +121,19 @@ impl From<ItemCategory> for app::ItemCategory {
     }
 }
 
-pub(crate) async fn add_items<C>(
+impl From<app::ItemCategory> for ItemCategory {
+    fn from(value: app::ItemCategory) -> Self {
+        match value {
+            app::ItemCategory::Food => Self::Food,
+            app::ItemCategory::Drink => Self::Drink,
+            app::ItemCategory::Other(v) => Self::Other(v),
+        }
+    }
+}
+
+pub(crate) async fn add_items<C, Q>(
     Path(aggregate_id): Path<String>,
-    State(service): State<Arc<C>>,
+    State(service): State<Arc<ServiceState<C, Q>>>,
     Json(AddItemsRequest {
         aggregate_version,
         items,
@@ -117,6 +141,7 @@ pub(crate) async fn add_items<C>(
 ) -> impl IntoResponse
 where
     C: CommandService,
+    Q: QueryService,
 {
     let items: Vec<app::Item> = items.into_iter().map(Into::into).collect();
     let Ok(aggregate_id) = aggregate_id.parse() else {
@@ -124,6 +149,7 @@ where
     };
 
     match service
+        .command
         .add_items(aggregate_id, aggregate_version, items)
         .await
     {
@@ -139,9 +165,9 @@ pub(crate) struct RemoveItemsRequest {
     item_ids: Vec<String>,
 }
 
-pub(crate) async fn remove_items<C>(
+pub(crate) async fn remove_items<C, Q>(
     Path(aggregate_id): Path<String>,
-    State(service): State<Arc<C>>,
+    State(service): State<Arc<ServiceState<C, Q>>>,
     Json(RemoveItemsRequest {
         aggregate_version,
         item_ids,
@@ -149,6 +175,7 @@ pub(crate) async fn remove_items<C>(
 ) -> impl IntoResponse
 where
     C: CommandService,
+    Q: QueryService,
 {
     let Ok(aggregate_id) = aggregate_id.parse() else {
         return StatusCode::BAD_REQUEST.into_response();
@@ -163,6 +190,7 @@ where
     let item_ids: Vec<_> = oks.into_iter().flatten().collect();
 
     match service
+        .command
         .remove_items(aggregate_id, aggregate_version, item_ids)
         .await
     {
@@ -170,4 +198,82 @@ where
         Err(e) => handling_app_error(e),
     }
     .into_response()
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ListRestaurantsResponse {
+    restaurants: Vec<Restaurant>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Restaurant {
+    aggregate_id: String,
+    name: String,
+}
+
+pub(crate) async fn list_restaurants<C, Q>(
+    State(service): State<Arc<ServiceState<C, Q>>>,
+) -> impl IntoResponse
+where
+    C: CommandService,
+    Q: QueryService,
+{
+    match service.query.list_restaurants().await {
+        Ok(restaurant_by_id) => {
+            let restaurants: Vec<_> = restaurant_by_id
+                .into_iter()
+                .map(|(id, restaurant)| Restaurant {
+                    aggregate_id: id.to_string(),
+                    name: restaurant.name().to_string(),
+                })
+                .collect();
+            (
+                StatusCode::OK,
+                Json(ListRestaurantsResponse { restaurants }),
+            )
+                .into_response()
+        }
+        Err(e) => handling_app_error(e).into_response(),
+    }
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ListItemsResponse {
+    items: Vec<ListItemsItem>,
+}
+
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ListItemsItem {
+    id: String,
+    name: String,
+    price: Price,
+    category: ItemCategory,
+}
+
+pub(crate) async fn list_items<C, Q>(
+    Path(aggregate_id): Path<String>,
+    State(service): State<Arc<ServiceState<C, Q>>>,
+) -> impl IntoResponse
+where
+    C: CommandService,
+    Q: QueryService,
+{
+    let Ok(aggregate_id) = aggregate_id.parse() else {
+        return StatusCode::BAD_REQUEST.into_response();
+    };
+    match service.query.list_items(aggregate_id).await {
+        Ok(item_by_id) => {
+            let items: Vec<_> = item_by_id
+                .into_iter()
+                .map(|(id, item)| ListItemsItem {
+                    id: id.to_string(),
+                    name: item.name().to_string(),
+                    price: item.price().clone().into(),
+                    category: item.category().clone().into(),
+                })
+                .collect();
+            (StatusCode::OK, Json(ListItemsResponse { items })).into_response()
+        }
+        Err(e) => handling_app_error(e).into_response(),
+    }
 }

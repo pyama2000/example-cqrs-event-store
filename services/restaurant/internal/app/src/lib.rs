@@ -8,4 +8,4 @@ pub use kernel::KernelError;
 
 pub use error::AppError;
 pub use model::{Item, ItemCategory, Price, Restaurant};
-pub use usecase::{CommandService, CommandUseCase};
+pub use usecase::{CommandService, CommandUseCase, QueryService, QueryUseCase};
