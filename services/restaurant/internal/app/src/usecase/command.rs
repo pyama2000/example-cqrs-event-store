@@ -146,10 +146,7 @@ mod tests {
                         Box::pin(async {
                             Ok(Aggregate::new(
                                 Id::generate(),
-                                kernel::Restaurant::new(
-                                    Id::generate(),
-                                    RESTAURANT_NAME.to_string(),
-                                ),
+                                kernel::Restaurant::new(RESTAURANT_NAME.to_string()),
                                 vec![],
                                 2,
                             ))
@@ -175,10 +172,7 @@ mod tests {
                         Box::pin(async {
                             Ok(Aggregate::new(
                                 Id::generate(),
-                                kernel::Restaurant::new(
-                                    Id::generate(),
-                                    RESTAURANT_NAME.to_string(),
-                                ),
+                                kernel::Restaurant::new(RESTAURANT_NAME.to_string()),
                                 vec![],
                                 1,
                             ))
@@ -240,10 +234,7 @@ mod tests {
                         Box::pin(async {
                             Ok(Aggregate::new(
                                 Id::generate(),
-                                kernel::Restaurant::new(
-                                    Id::generate(),
-                                    RESTAURANT_NAME.to_string(),
-                                ),
+                                kernel::Restaurant::new(RESTAURANT_NAME.to_string()),
                                 vec![],
                                 2,
                             ))
@@ -269,10 +260,7 @@ mod tests {
                         Box::pin(async {
                             Ok(Aggregate::new(
                                 Id::generate(),
-                                kernel::Restaurant::new(
-                                    Id::generate(),
-                                    RESTAURANT_NAME.to_string(),
-                                ),
+                                kernel::Restaurant::new(RESTAURANT_NAME.to_string()),
                                 vec![],
                                 1,
                             ))

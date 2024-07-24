@@ -59,30 +59,14 @@ impl TryInto<Aggregate> for AggregateModel {
             Payload::V1 { restaurant, items } => (restaurant, items),
         };
         let restaurant = match restaurant {
-            Restaurant::V1 { id, name } => kernel::Restaurant::new(id.parse()?, name),
+            Restaurant::V1 { name } => kernel::Restaurant::new(name),
         };
         let results: Vec<_> = items
             .into_iter()
             .map(|x| match x {
-                Item::V1 {
-                    id,
-                    name,
-                    price,
-                    category,
-                } => Ok::<kernel::Item, Self::Error>(kernel::Item::new(
-                    id.parse()?,
-                    name,
-                    match price {
-                        crate::model::command::entity::Price::Yen(v) => kernel::Price::Yen(v),
-                    },
-                    match category {
-                        crate::model::command::entity::ItemCategory::Food => kernel::ItemCategory::Food,
-                        crate::model::command::entity::ItemCategory::Drink => kernel::ItemCategory::Drink,
-                        crate::model::command::entity::ItemCategory::Other(v) => {
-                            kernel::ItemCategory::Other(v)
-                        }
-                    },
-                )),
+                Item::V1 { id, name, price } => {
+                    Ok::<kernel::Item, Self::Error>(kernel::Item::new(id.parse()?, name, price))
+                }
             })
             .collect();
         if results.iter().any(Result::is_err) {

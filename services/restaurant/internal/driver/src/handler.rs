@@ -67,67 +67,12 @@ pub(crate) struct AddItemsRequest {
 #[derive(Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub(crate) struct Item {
     name: String,
-    price: Price,
-    category: ItemCategory,
+    price: u64,
 }
 
 impl From<Item> for app::Item {
-    fn from(
-        Item {
-            name,
-            price,
-            category,
-        }: Item,
-    ) -> Self {
-        Self::new(name, price.into(), category.into())
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum Price {
-    Yen(u64),
-}
-
-impl From<Price> for app::Price {
-    fn from(value: Price) -> Self {
-        match value {
-            Price::Yen(v) => Self::Yen(v),
-        }
-    }
-}
-
-impl From<app::Price> for Price {
-    fn from(value: app::Price) -> Self {
-        match value {
-            app::Price::Yen(v) => Self::Yen(v),
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum ItemCategory {
-    Food,
-    Drink,
-    Other(String),
-}
-
-impl From<ItemCategory> for app::ItemCategory {
-    fn from(value: ItemCategory) -> Self {
-        match value {
-            ItemCategory::Food => Self::Food,
-            ItemCategory::Drink => Self::Drink,
-            ItemCategory::Other(v) => Self::Other(v),
-        }
-    }
-}
-
-impl From<app::ItemCategory> for ItemCategory {
-    fn from(value: app::ItemCategory) -> Self {
-        match value {
-            app::ItemCategory::Food => Self::Food,
-            app::ItemCategory::Drink => Self::Drink,
-            app::ItemCategory::Other(v) => Self::Other(v),
-        }
+    fn from(Item { name, price }: Item) -> Self {
+        Self::new(name, price)
     }
 }
 
@@ -246,8 +191,7 @@ pub struct ListItemsResponse {
 pub struct ListItemsItem {
     id: String,
     name: String,
-    price: Price,
-    category: ItemCategory,
+    price: u64,
 }
 
 pub(crate) async fn list_items<C, Q>(
@@ -268,8 +212,7 @@ where
                 .map(|(id, item)| ListItemsItem {
                     id: id.to_string(),
                     name: item.name().to_string(),
-                    price: item.price().clone().into(),
-                    category: item.category().clone().into(),
+                    price: item.price(),
                 })
                 .collect();
             (StatusCode::OK, Json(ListItemsResponse { items })).into_response()

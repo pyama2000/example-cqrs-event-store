@@ -169,6 +169,8 @@ services:
         condition: service_started
       terraform-init:
         condition: service_completed_successfully
+      event-router-deploy:
+        condition: service_completed_successfully
       query-model-mapper-deploy:
         condition: service_completed_successfully
 volumes:

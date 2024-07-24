@@ -2,19 +2,13 @@ use crate::Id;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Restaurant {
-    id: Id<Restaurant>,
     name: String,
 }
 
 impl Restaurant {
     #[must_use]
-    pub fn new(id: Id<Restaurant>, name: String) -> Self {
-        Self { id, name }
-    }
-
-    #[must_use]
-    pub fn id(&self) -> &Id<Restaurant> {
-        &self.id
+    pub fn new(name: String) -> Self {
+        Self { name }
     }
 
     #[must_use]
@@ -28,19 +22,13 @@ impl Restaurant {
 pub struct Item {
     id: Id<Item>,
     name: String,
-    price: Price,
-    category: ItemCategory,
+    price: u64,
 }
 
 impl Item {
     #[must_use]
-    pub fn new(id: Id<Item>, name: String, price: Price, category: ItemCategory) -> Self {
-        Self {
-            id,
-            name,
-            price,
-            category,
-        }
+    pub fn new(id: Id<Item>, name: String, price: u64) -> Self {
+        Self { id, name, price }
     }
 
     #[must_use]
@@ -54,26 +42,7 @@ impl Item {
     }
 
     #[must_use]
-    pub fn price(&self) -> &Price {
-        &self.price
+    pub fn price(&self) -> u64 {
+        self.price
     }
-
-    #[must_use]
-    pub fn category(&self) -> &ItemCategory {
-        &self.category
-    }
-}
-
-/// 商品のカテゴリー
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum ItemCategory {
-    Food,
-    Drink,
-    Other(String),
-}
-
-/// 商品の価格
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Price {
-    Yen(u64),
 }

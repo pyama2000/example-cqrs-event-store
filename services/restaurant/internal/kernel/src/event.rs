@@ -47,7 +47,7 @@ impl From<Command> for Vec<Event> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Command, Event, EventPayload, Id, Item, ItemCategory, Price, Restaurant};
+    use crate::{Command, Event, EventPayload, Id, Item, Restaurant};
 
     #[test]
     fn test_convert_command_into_event() {
@@ -56,54 +56,27 @@ mod tests {
             command: Command,
             expected: Vec<Event>,
         }
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let item_id: Id<Item> = Id::generate();
         let tests = [
             TestCase {
                 name: "CreateRestaurantコマンドの場合はRestaurantCreatedイベントにのみ変換される",
-                command: Command::CrateAggregate(Restaurant::new(
-                    restaurant_id.clone(),
-                    "テスト店舗".to_string(),
-                )),
+                command: Command::CrateAggregate(Restaurant::new("テスト店舗".to_string())),
                 expected: vec![Event::new(
                     Id::generate(),
-                    EventPayload::AggregateCreated(Restaurant::new(
-                        restaurant_id.clone(),
-                        "テスト店舗".to_string(),
-                    )),
+                    EventPayload::AggregateCreated(Restaurant::new("テスト店舗".to_string())),
                 )],
             },
             TestCase {
                 name: "AddItemsコマンドの場合はItemsAddedイベントにのみ変換される",
                 command: Command::AddItems(vec![
-                    Item::new(
-                        item_id.clone(),
-                        "Food1".to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
-                    ),
-                    Item::new(
-                        item_id.clone(),
-                        "Other1".to_string(),
-                        Price::Yen(500),
-                        ItemCategory::Other("おしぼり".to_string()),
-                    ),
+                    Item::new(item_id.clone(), "Food1".to_string(), 1000),
+                    Item::new(item_id.clone(), "Other1".to_string(), 500),
                 ]),
                 expected: vec![Event::new(
                     Id::generate(),
                     EventPayload::ItemsAdded(vec![
-                        Item::new(
-                            item_id.clone(),
-                            "Food1".to_string(),
-                            Price::Yen(1000),
-                            ItemCategory::Food,
-                        ),
-                        Item::new(
-                            item_id.clone(),
-                            "Other1".to_string(),
-                            Price::Yen(500),
-                            ItemCategory::Other("おしぼり".to_string()),
-                        ),
+                        Item::new(item_id.clone(), "Food1".to_string(), 1000),
+                        Item::new(item_id.clone(), "Other1".to_string(), 500),
                     ]),
                 )],
             },

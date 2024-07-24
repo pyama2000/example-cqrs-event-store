@@ -44,7 +44,7 @@ async fn function_handler(event: LambdaEvent<SqsEvent>) -> Result<(), Error> {
                         .bind(model.aggregate_id().as_bytes())
                         .bind(item.id().as_bytes())
                         .bind(item.name())
-                        .bind(item.price().value())
+                        .bind(item.price())
                         .execute(&mut *tx)
                         .await?;
                 }

@@ -187,8 +187,7 @@ mod tests {
         AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ProvisionedThroughput,
     };
     use kernel::{
-        Aggregate, CommandProcessor, Event, EventPayload, Id, Item, ItemCategory, KernelError,
-        Price, Restaurant,
+        Aggregate, CommandProcessor, Event, EventPayload, Id, Item, KernelError, Restaurant,
     };
     use testcontainers::runners::AsyncRunner;
     use testcontainers::ContainerAsync;
@@ -220,7 +219,6 @@ mod tests {
         } = Prepare::with_container().await?;
 
         let aggregate_id: Id<Aggregate> = Id::generate();
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let event_id: Id<Event> = Id::generate();
 
         let tests = [TestCase {
@@ -228,30 +226,24 @@ mod tests {
                 "引数に集約と集約作成イベントが渡された場合、それぞれが対応するテーブルに保存される",
             aggregate: Aggregate::new(
                 aggregate_id.clone(),
-                Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                Restaurant::new(RESTAURANT_NAME.to_string()),
                 vec![],
                 1,
             ),
             events: vec![Event::new(
                 event_id.clone(),
-                EventPayload::AggregateCreated(Restaurant::new(
-                    restaurant_id.clone(),
-                    RESTAURANT_NAME.to_string(),
-                )),
+                EventPayload::AggregateCreated(Restaurant::new(RESTAURANT_NAME.to_string())),
             )],
             expected_aggregate_models: vec![AggregateModel::new(Aggregate::new(
                 aggregate_id.clone(),
-                Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                Restaurant::new(RESTAURANT_NAME.to_string()),
                 vec![],
                 1,
             ))],
             expected_event_models: vec![EventModel::new(
                 &event_id,
                 &aggregate_id,
-                EventPayload::AggregateCreated(Restaurant::new(
-                    restaurant_id.clone(),
-                    RESTAURANT_NAME.to_string(),
-                )),
+                EventPayload::AggregateCreated(Restaurant::new(RESTAURANT_NAME.to_string())),
             )],
         }];
         for TestCase {
@@ -313,7 +305,7 @@ mod tests {
                 fixture: Fixture::new(
                     vec![AggregateModel::new(Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(Id::generate(), String::new()),
+                        Restaurant::new(String::new()),
                         vec![],
                         1,
                     ))],
@@ -321,13 +313,13 @@ mod tests {
                 ),
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(Id::generate(), String::new()),
+                    Restaurant::new(String::new()),
                     vec![],
                     1,
                 ),
                 events: vec![Event::new(
                     Id::generate(),
-                    EventPayload::AggregateCreated(Restaurant::new(Id::generate(), String::new())),
+                    EventPayload::AggregateCreated(Restaurant::new(String::new())),
                 )],
                 assert: |name, actual| {
                     assert!(matches!(actual, Err(KernelError::Unknown(_))), "{name}");
@@ -340,21 +332,18 @@ mod tests {
                     vec![EventModel::new(
                         &event_id,
                         &aggregate_id,
-                        EventPayload::AggregateCreated(Restaurant::new(
-                            Id::generate(),
-                            String::new(),
-                        )),
+                        EventPayload::AggregateCreated(Restaurant::new(String::new())),
                     )],
                 ),
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(Id::generate(), String::new()),
+                    Restaurant::new(String::new()),
                     vec![],
                     1,
                 ),
                 events: vec![Event::new(
                     event_id.clone(),
-                    EventPayload::AggregateCreated(Restaurant::new(Id::generate(), String::new())),
+                    EventPayload::AggregateCreated(Restaurant::new(String::new())),
                 )],
                 assert: |name, actual| {
                     assert!(matches!(actual, Err(KernelError::Unknown(_))), "{name}");
@@ -442,7 +431,6 @@ mod tests {
         } = Prepare::with_container().await?;
 
         let aggregate_id: Id<Aggregate> = Id::generate();
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let item_id: Id<Item> = Id::generate();
 
         let tests = [TestCase {
@@ -450,20 +438,10 @@ mod tests {
             fixture: Fixture::new(
                 vec![AggregateModel::new(Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![
-                        Item::new(
-                            item_id.clone(),
-                            ITEM_NAME.to_string(),
-                            Price::Yen(1000),
-                            ItemCategory::Food,
-                        ),
-                        Item::new(
-                            item_id.clone(),
-                            ITEM_NAME.to_string(),
-                            Price::Yen(1000),
-                            ItemCategory::Drink,
-                        ),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                        Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
                     ],
                     2,
                 ))],
@@ -472,20 +450,10 @@ mod tests {
             id: aggregate_id.clone(),
             expected: Aggregate::new(
                 aggregate_id.clone(),
-                Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                Restaurant::new(RESTAURANT_NAME.to_string()),
                 vec![
-                    Item::new(
-                        item_id.clone(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
-                    ),
-                    Item::new(
-                        item_id.clone(),
-                        ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Drink,
-                    ),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
+                    Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000),
                 ],
                 2,
             ),
@@ -569,7 +537,6 @@ mod tests {
         } = Prepare::with_container().await?;
 
         let aggregate_id: Id<Aggregate> = Id::generate();
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let item_id: Id<Item> = Id::generate();
         let event_id: Id<Event> = Id::generate();
 
@@ -578,7 +545,7 @@ mod tests {
             fixture: Fixture::new(
                 vec![AggregateModel::new(Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![],
                     1,
                 ))],
@@ -586,13 +553,8 @@ mod tests {
             ),
             aggregate: Aggregate::new(
                 aggregate_id.clone(),
-                Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
-                vec![Item::new(
-                    item_id.clone(),
-                    ITEM_NAME.to_string(),
-                    Price::Yen(1000),
-                    ItemCategory::Food,
-                )],
+                Restaurant::new(RESTAURANT_NAME.to_string()),
+                vec![Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000)],
                 2,
             ),
             events: vec![Event::new(
@@ -600,19 +562,13 @@ mod tests {
                 EventPayload::ItemsAdded(vec![Item::new(
                     item_id.clone(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
-                    ItemCategory::Food,
+                    1000,
                 )]),
             )],
             expected_aggregate_models: vec![AggregateModel::new(Aggregate::new(
                 aggregate_id.clone(),
-                Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
-                vec![Item::new(
-                    item_id.clone(),
-                    ITEM_NAME.to_string(),
-                    Price::Yen(1000),
-                    ItemCategory::Food,
-                )],
+                Restaurant::new(RESTAURANT_NAME.to_string()),
+                vec![Item::new(item_id.clone(), ITEM_NAME.to_string(), 1000)],
                 2,
             ))],
             expected_event_models: vec![EventModel::new(
@@ -621,8 +577,7 @@ mod tests {
                 EventPayload::ItemsAdded(vec![Item::new(
                     item_id.clone(),
                     ITEM_NAME.to_string(),
-                    Price::Yen(1000),
-                    ItemCategory::Food,
+                    1000,
                 )]),
             )],
         }];
@@ -683,7 +638,6 @@ mod tests {
         } = Prepare::with_container().await?;
 
         let aggregate_id: Id<Aggregate> = Id::generate();
-        let restaurant_id: Id<Restaurant> = Id::generate();
         let item_id: Id<Item> = Id::generate();
         let event_id: Id<Event> = Id::generate();
 
@@ -693,7 +647,7 @@ mod tests {
                 fixture: Fixture::new(
                     vec![AggregateModel::new(Aggregate::new(
                         aggregate_id.clone(),
-                        Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                        Restaurant::new(RESTAURANT_NAME.to_string()),
                         vec![],
                         2,
                     ))],
@@ -701,7 +655,7 @@ mod tests {
                 ),
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![],
                     2,
                 ),
@@ -710,8 +664,7 @@ mod tests {
                     EventPayload::ItemsAdded(vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
+                        1000,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -723,7 +676,7 @@ mod tests {
                 fixture: Fixture::new(vec![], vec![]),
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![],
                     2,
                 ),
@@ -732,8 +685,7 @@ mod tests {
                     EventPayload::ItemsAdded(vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
+                        1000,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -752,7 +704,7 @@ mod tests {
                 ),
                 aggregate: Aggregate::new(
                     aggregate_id.clone(),
-                    Restaurant::new(restaurant_id.clone(), RESTAURANT_NAME.to_string()),
+                    Restaurant::new(RESTAURANT_NAME.to_string()),
                     vec![],
                     2,
                 ),
@@ -761,8 +713,7 @@ mod tests {
                     EventPayload::ItemsAdded(vec![Item::new(
                         item_id.clone(),
                         ITEM_NAME.to_string(),
-                        Price::Yen(1000),
-                        ItemCategory::Food,
+                        1000,
                     )]),
                 )],
                 assert: |name, actual| {
@@ -820,10 +771,7 @@ mod tests {
                     ),
                     Event::new(
                         Id::generate(),
-                        EventPayload::AggregateCreated(Restaurant::new(
-                            Id::generate(),
-                            String::new(),
-                        )),
+                        EventPayload::AggregateCreated(Restaurant::new(String::new())),
                     ),
                 ],
                 assert: |name, actual| {

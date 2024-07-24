@@ -19,7 +19,7 @@ impl Restaurant {
 
 impl From<Restaurant> for kernel::Restaurant {
     fn from(value: Restaurant) -> Self {
-        Self::new(Id::generate(), value.name)
+        Self::new(value.name)
     }
 }
 
@@ -34,18 +34,13 @@ impl From<kernel::Restaurant> for Restaurant {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Item {
     name: String,
-    price: Price,
-    category: ItemCategory,
+    price: u64,
 }
 
 impl Item {
     #[must_use]
-    pub fn new(name: String, price: Price, category: ItemCategory) -> Self {
-        Self {
-            name,
-            price,
-            category,
-        }
+    pub fn new(name: String, price: u64) -> Self {
+        Self { name, price }
     }
 
     #[must_use]
@@ -54,24 +49,14 @@ impl Item {
     }
 
     #[must_use]
-    pub fn price(&self) -> &Price {
-        &self.price
-    }
-
-    #[must_use]
-    pub fn category(&self) -> &ItemCategory {
-        &self.category
+    pub fn price(&self) -> u64 {
+        self.price
     }
 }
 
 impl From<Item> for kernel::Item {
     fn from(value: Item) -> Self {
-        Self::new(
-            Id::generate(),
-            value.name,
-            value.price.into(),
-            value.category.into(),
-        )
+        Self::new(Id::generate(), value.name, value.price)
     }
 }
 
@@ -79,56 +64,7 @@ impl From<kernel::Item> for Item {
     fn from(value: kernel::Item) -> Self {
         Self {
             name: value.name().to_string(),
-            price: value.price().clone().into(),
-            category: value.category().clone().into(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ItemCategory {
-    Food,
-    Drink,
-    Other(String),
-}
-
-impl From<ItemCategory> for kernel::ItemCategory {
-    fn from(value: ItemCategory) -> Self {
-        match value {
-            ItemCategory::Food => kernel::ItemCategory::Food,
-            ItemCategory::Drink => kernel::ItemCategory::Drink,
-            ItemCategory::Other(x) => kernel::ItemCategory::Other(x),
-        }
-    }
-}
-
-impl From<kernel::ItemCategory> for ItemCategory {
-    fn from(value: kernel::ItemCategory) -> Self {
-        match value {
-            kernel::ItemCategory::Food => Self::Food,
-            kernel::ItemCategory::Drink => Self::Drink,
-            kernel::ItemCategory::Other(x) => Self::Other(x),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Price {
-    Yen(u64),
-}
-
-impl From<Price> for kernel::Price {
-    fn from(value: Price) -> Self {
-        match value {
-            Price::Yen(x) => Self::Yen(x),
-        }
-    }
-}
-
-impl From<kernel::Price> for Price {
-    fn from(value: kernel::Price) -> Self {
-        match value {
-            kernel::Price::Yen(x) => Self::Yen(x),
+            price: value.price(),
         }
     }
 }

@@ -35,9 +35,6 @@ resource "aws_dynamodb_table_item" "aggregate" {
                     "name" : {
                       "S" : "インドカレー 新宿店"
                     },
-                    "id" : {
-                      "S" : "0190d7b2-3940-7f92-9f87-000a56043de9"
-                    }
                   }
                 }
               }
@@ -54,15 +51,8 @@ resource "aws_dynamodb_table_item" "aggregate" {
                         "id" : {
                           "S" : "0190d7b2-a2ca-7653-b005-244be7768ba4"
                         },
-                        "category" : {
-                          "S" : "Food"
-                        },
                         "price" : {
-                          "M" : {
-                            "Yen" : {
-                              "N" : "1000"
-                            }
-                          }
+                          "N" : "1000"
                         }
                       }
                     }
@@ -121,9 +111,6 @@ resource "aws_dynamodb_table_item" "restaurant_created_event" {
                 "name" : {
                   "S" : "インドカレー 新宿店"
                 },
-                "id" : {
-                  "S" : "0190d7b2-3940-7f92-9f87-000a56043de9"
-                }
               }
             }
           }
@@ -160,15 +147,8 @@ resource "aws_dynamodb_table_item" "item_added" {
                     "id" : {
                       "S" : "0190d7b2-a2ca-7653-b005-244be7768ba4"
                     },
-                    "category" : {
-                      "S" : "Food"
-                    },
                     "price" : {
-                      "M" : {
-                        "Yen" : {
-                          "N" : "1000"
-                        }
-                      }
+                      "N" : "1000"
                     }
                   }
                 }
