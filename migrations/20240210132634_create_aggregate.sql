@@ -1,7 +1,0 @@
-CREATE TABLE aggregate (
-    widget_id VARCHAR(255) NOT NULL,
-    last_events JSON NOT NULL,
-    aggregate_version BIGINT UNSIGNED NOT NULL,
-    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    PRIMARY KEY (widget_id)
-) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4;
