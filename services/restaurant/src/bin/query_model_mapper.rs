@@ -1,5 +1,4 @@
-use adapter::model::event::Payload;
-use adapter::EventModel;
+use adapter::{EventModel, Payload};
 use aws_lambda_events::event::sqs::SqsEvent;
 use lambda_runtime::{run, service_fn, tracing, Error, LambdaEvent};
 use sqlx::{Connection, MySqlConnection};

@@ -1,7 +1,6 @@
-pub(crate) mod aggregate;
-pub mod entity;
-pub mod event;
+pub mod command;
+pub mod query;
 
-pub(crate) use aggregate::AggregateModel;
-pub use entity::{Item, Restaurant};
-pub use event::EventModel;
+pub(crate) use command::AggregateModel;
+pub use command::{EventModel, Item, Payload, Restaurant};
+pub(crate) use query::{RestaurantModel, RestaurantItemModel};

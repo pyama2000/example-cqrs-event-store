@@ -73,12 +73,12 @@ impl TryInto<Aggregate> for AggregateModel {
                     id.parse()?,
                     name,
                     match price {
-                        crate::model::entity::Price::Yen(v) => kernel::Price::Yen(v),
+                        crate::model::command::entity::Price::Yen(v) => kernel::Price::Yen(v),
                     },
                     match category {
-                        crate::model::entity::ItemCategory::Food => kernel::ItemCategory::Food,
-                        crate::model::entity::ItemCategory::Drink => kernel::ItemCategory::Drink,
-                        crate::model::entity::ItemCategory::Other(v) => {
+                        crate::model::command::entity::ItemCategory::Food => kernel::ItemCategory::Food,
+                        crate::model::command::entity::ItemCategory::Drink => kernel::ItemCategory::Drink,
+                        crate::model::command::entity::ItemCategory::Other(v) => {
                             kernel::ItemCategory::Other(v)
                         }
                     },

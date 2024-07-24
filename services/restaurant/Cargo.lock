@@ -11,6 +11,7 @@ dependencies = [
  "kernel",
  "serde",
  "serde_dynamo",
+ "sqlx",
  "testcontainers",
  "testcontainers-modules",
  "tokio",

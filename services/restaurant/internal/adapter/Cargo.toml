@@ -9,6 +9,7 @@ aws-sdk-dynamodb = "1.38.0"
 kernel = { version = "0.1.0", path = "../kernel" }
 serde = { version = "1.0.204", features = ["derive"] }
 serde_dynamo = { version = "4.2.14", features = ["aws-sdk-dynamodb+1"] }
+sqlx = { version = "0.7.4", features = ["runtime-tokio", "mysql", "json"] }
 
 [dev-dependencies]
 aws-config = "1.5.4"
