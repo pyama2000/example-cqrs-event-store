@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+uuid = { version = "1.10.0", features = ["v7"] }
 
 [lints]
 workspace = true
