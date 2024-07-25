@@ -17,7 +17,7 @@ pub struct Order {
     restaurant_id: Id<Restaurant>,
     user_id: Id<User>,
     delivery_address: String,
-    status: OrderStatus,
+    pub(crate) status: OrderStatus,
 }
 
 impl Order {
@@ -65,7 +65,7 @@ pub enum OrderStatus {
     /// 飲食店が注文の準備をしている状態
     Preparing,
     /// 配達員を割り当てる状態
-    AssigningDeliveryPerson {
+    DeliveryPersonAssigned {
         delivery_person_id: Id<DeliveryPerson>,
     },
     /// 飲食店が注文の準備が完了して、配達員が受け取りに来るのを待っている状態
@@ -73,7 +73,7 @@ pub enum OrderStatus {
         delivery_person_id: Id<DeliveryPerson>,
     },
     /// 配達員が飲食店に向かっている、または飲食店で注文を受け取っている状態
-    DeliveryPersonPickingUp {
+    DeliveryPersonPickedUp {
         delivery_person_id: Id<DeliveryPerson>,
     },
     /// 配達員が注文をユーザーに届け、ユーザーが受け取った状態
