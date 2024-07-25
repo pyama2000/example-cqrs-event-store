@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-#[derive(Error, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Error, Debug)]
 pub enum KernelError {
     #[error("Aggregate already created")]
     AggregateAlreadyCreated,

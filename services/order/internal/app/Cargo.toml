@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+kernel = { version = "0.1.0", path = "../kernel", features = ["command"] }
+thiserror.workspace = true
 
 [lints]
 workspace = true
