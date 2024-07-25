@@ -5,7 +5,8 @@ pub mod error;
 pub mod id;
 
 pub use command::{
-    Aggregate, Command, DeliveryPerson, Event, EventPayload, Order, OrderItem, OrderStatus,
+    Aggregate, Command, CommandProcessor, DeliveryPerson, Event, EventPayload, Order, OrderItem,
+    OrderStatus,
 };
 pub use error::KernelError;
 pub use id::Id;
