@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use app::CommandService;
+use axum::routing::post;
 use axum::Router;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::signal;
+
+use crate::handler::{create_order, update_status};
 
 pub(crate) struct ServiceState<C: CommandService> {
     pub(crate) command: C,
@@ -22,7 +25,14 @@ impl<T: ToSocketAddrs + std::fmt::Display> Server<T> {
         let state = ServiceState {
             command: command_service,
         };
-        let router = Router::new().with_state(Arc::new(state));
+        let router = Router::new()
+            .nest(
+                "/orders",
+                Router::new()
+                    .route("/", post(create_order))
+                    .route("/:aggregate_id", post(update_status)),
+            )
+            .with_state(Arc::new(state));
         Self { addr, router }
     }
 
