@@ -14,9 +14,9 @@ pub(crate) struct DeliveryPerson;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Order {
-    restaurant_id: Id<Restaurant>,
-    user_id: Id<User>,
-    delivery_address: String,
+    pub(crate) restaurant_id: Id<Restaurant>,
+    pub(crate) user_id: Id<User>,
+    pub(crate) delivery_address: String,
 }
 
 impl Order {
@@ -27,21 +27,6 @@ impl Order {
             user_id,
             delivery_address,
         }
-    }
-
-    #[must_use]
-    pub fn restaurant_id(&self) -> &Id<Restaurant> {
-        &self.restaurant_id
-    }
-
-    #[must_use]
-    pub fn user_id(&self) -> &Id<User> {
-        &self.user_id
-    }
-
-    #[must_use]
-    pub fn delivery_address(&self) -> &str {
-        &self.delivery_address
     }
 }
 
@@ -61,19 +46,18 @@ impl OrderItem {
             quantity,
         }
     }
+}
 
-    #[must_use]
-    pub fn item_id(&self) -> &Id<Item> {
-        &self.item_id
-    }
+impl TryFrom<OrderItem> for kernel::OrderItem {
+    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-    #[must_use]
-    pub fn price(&self) -> u64 {
-        self.price
-    }
-
-    #[must_use]
-    pub fn quantity(&self) -> u64 {
-        self.quantity
+    fn try_from(
+        OrderItem {
+            item_id,
+            price,
+            quantity,
+        }: OrderItem,
+    ) -> Result<Self, Self::Error> {
+        Ok(Self::new(item_id.to_string().parse()?, price, quantity))
     }
 }

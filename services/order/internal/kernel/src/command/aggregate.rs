@@ -49,6 +49,12 @@ impl Aggregate {
             .sum()
     }
 
+    #[must_use]
+    #[cfg(feature = "command")]
+    pub fn is_conflicted(&self, version: u64) -> bool {
+        version != self.version
+    }
+
     /// 集約にコマンドを実行する
     ///
     /// # Errors

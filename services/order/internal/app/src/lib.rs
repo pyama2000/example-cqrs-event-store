@@ -3,5 +3,5 @@
 pub mod command;
 pub mod error;
 
-pub use command::{CommandService, Order, OrderItem};
+pub use command::{CommandService, CommandUseCase, Order, OrderItem};
 pub use error::AppError;
