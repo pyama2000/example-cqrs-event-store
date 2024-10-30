@@ -1,0 +1,10 @@
+[package]
+name = "kernel"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1.0.65"
+
+[lints]
+workspace = true

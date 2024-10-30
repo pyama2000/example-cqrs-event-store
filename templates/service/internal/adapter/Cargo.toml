@@ -1,0 +1,10 @@
+[package]
+name = "adapter"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kernel = { version = "0.1.0", path = "../kernel" }
+
+[lints]
+workspace = true
