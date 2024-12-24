@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package cart.v1;
+
+message Event {
+  // イベントID
+  uint64 id = 1;
+  // 集約ID (=カートID)
+  string aggregate_id = 2;
+  // イベントの内容
+  oneof payload {
+    CartCreatedV1 cart_created_v1 = 3;
+    ItemAddedV1 item_added_v1 = 4;
+    ItemRemovedV1 item_removed_v1 = 5;
+    OrderPlacedV1 order_placed_v1 = 6;
+  }
+}
+
+message CartCreatedV1 {}
+
+message ItemAddedV1 {
+  // テナントID
+  string tenant_id = 1;
+  // 商品ID
+  string item_id = 2;
+}
+
+message ItemRemovedV1 {
+  // テナントID
+  string tenant_id = 1;
+  // 商品ID
+  string item_id = 2;
+}
+
+message OrderPlacedV1 {
+  message Item {
+    // テナントID
+    string tenant_id = 1;
+    // 商品ID
+    string item_id = 2;
+    // 数量
+    uint32 quantity = 3;
+  }
+
+  // 注文する商品
+  repeated Item items = 1;
+}
