@@ -5,7 +5,11 @@ edition = "2021"
 
 [dependencies]
 app = { version = "0.1.0", path = "../app" }
+proto = { version = "0.1.0", path = "../../../../proto/generate/rust", default-features = false, features = ["tenant-v1"] }
 tokio = { version = "1.41.0", default-features = false, features = ["signal"] }
+tonic = "0.12.3"
+tonic-health = "0.12.3"
+tonic-reflection = "0.12.3"
 tracing = "0.1.40"
 
 [lints]
