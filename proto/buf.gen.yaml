@@ -18,4 +18,4 @@ plugins:
     out: generate/rust
     strategy: all
     opt:
-      - gen_crate=Cargo.toml
+      - gen_crate=Cargo.template.toml
