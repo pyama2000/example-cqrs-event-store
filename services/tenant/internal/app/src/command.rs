@@ -6,4 +6,5 @@ pub mod model;
 pub mod usecase;
 
 pub use error::CommandUseCaseError;
-pub use usecase::{CommandService, CommandUseCase};
+pub use model::{Item, Tenant};
+pub use usecase::{CommandUseCase, CommandUseCaseExt};

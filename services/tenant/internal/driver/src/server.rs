@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 
+use app::{CommandUseCaseExt, Item, Tenant};
 use proto::tenant::v1::tenant_service_server::{TenantService, TenantServiceServer};
 use proto::tenant::v1::{
     AddItemsRequest, AddItemsResponse, CreateRequest, CreateResponse, ListItemsRequest,
@@ -9,12 +10,32 @@ use proto::tenant::v1::{
 use tokio::signal;
 use tonic::{Request, Response, Status};
 
-pub struct Service;
+pub struct Service<C: CommandUseCaseExt> {
+    command: C,
+}
+
+impl<C: CommandUseCaseExt> Service<C> {
+    pub fn new(command: C) -> Self {
+        Self { command }
+    }
+}
 
 #[tonic::async_trait]
-impl TenantService for Service {
-    async fn create(&self, _: Request<CreateRequest>) -> Result<Response<CreateResponse>, Status> {
-        todo!()
+impl<C> TenantService for Service<C>
+where
+    C: CommandUseCaseExt + Send + Sync + 'static,
+{
+    async fn create(
+        &self,
+        req: Request<CreateRequest>,
+    ) -> Result<Response<CreateResponse>, Status> {
+        let req = req.into_inner();
+        self.command
+            .create(Tenant::new(req.name))
+            .await
+            .map(|id| Response::new(CreateResponse { id }))
+            // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
+            .map_err(|e| Status::internal(e.to_string()))
     }
 
     async fn list_tenants(
@@ -26,16 +47,35 @@ impl TenantService for Service {
 
     async fn add_items(
         &self,
-        _: Request<AddItemsRequest>,
+        req: Request<AddItemsRequest>,
     ) -> Result<Response<AddItemsResponse>, Status> {
-        todo!()
+        let AddItemsRequest { tenant_id, items } = req.into_inner();
+        let items = items
+            .into_iter()
+            .map(|x| Item::new(x.name, x.price))
+            .collect();
+        self.command
+            .add_items(tenant_id, items)
+            .await
+            .map(|ids| Response::new(AddItemsResponse { ids }))
+            // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
+            .map_err(|e| Status::internal(e.to_string()))
     }
 
     async fn remove_items(
         &self,
-        _: Request<RemoveItemsRequest>,
+        req: Request<RemoveItemsRequest>,
     ) -> Result<Response<RemoveItemsResponse>, Status> {
-        todo!()
+        let RemoveItemsRequest {
+            tenant_id,
+            item_ids,
+        } = req.into_inner();
+        self.command
+            .remove_items(tenant_id, item_ids)
+            .await
+            .map(|()| Response::new(RemoveItemsResponse {}))
+            // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
+            .map_err(|e| Status::internal(e.to_string()))
     }
 
     async fn list_items(
@@ -46,13 +86,16 @@ impl TenantService for Service {
     }
 }
 
-pub struct Server {
-    service: Service,
+pub struct Server<C: CommandUseCaseExt> {
+    service: Service<C>,
 }
 
-impl Server {
+impl<C> Server<C>
+where
+    C: CommandUseCaseExt + Send + Sync + 'static,
+{
     #[must_use]
-    pub fn new(service: Service) -> Self {
+    pub fn new(service: Service<C>) -> Self {
         Self { service }
     }
 
