@@ -1,6 +1,6 @@
 use std::future::Future;
 
-use kernel::CommandProcessor;
+use kernel::{CommandProcessor, Id};
 
 use super::{CommandUseCaseError, Item, Tenant};
 
@@ -9,30 +9,18 @@ pub trait CommandUseCaseExt {
     fn create(
         &self,
         tenant: Tenant,
-    ) -> impl Future<
-        Output = Result<
-            String, // TODO: kernelでID構造体を定義したら変更する
-            CommandUseCaseError,
-        >,
-    > + Send;
+    ) -> impl Future<Output = Result<Id<Tenant>, CommandUseCaseError>> + Send;
 
     fn add_items(
         &self,
-        tenant_id: String, // TODO: kernelでID構造体を定義したら変更する
+        tenant_id: Id<Tenant>,
         items: Vec<Item>,
-    ) -> impl Future<
-        Output = Result<
-            Vec<
-                String, // TODO: kernelでID構造体を定義したら変更する
-            >,
-            CommandUseCaseError,
-        >,
-    > + Send;
+    ) -> impl Future<Output = Result<Vec<Id<Item>>, CommandUseCaseError>> + Send;
 
     fn remove_items(
         &self,
-        tenant_id: String,     // TODO: kernelでID構造体を定義したら変更する
-        item_ids: Vec<String>, // TODO: kernelでID構造体を定義したら変更する
+        tenant_id: Id<Tenant>,
+        item_ids: Vec<Id<Item>>,
     ) -> impl Future<Output = Result<(), CommandUseCaseError>> + Send;
 }
 
@@ -52,15 +40,23 @@ impl<P> CommandUseCaseExt for CommandUseCase<P>
 where
     P: CommandProcessor + Send + Sync + 'static,
 {
-    async fn create(&self, _: Tenant) -> Result<String, CommandUseCaseError> {
+    async fn create(&self, _: Tenant) -> Result<Id<Tenant>, CommandUseCaseError> {
         todo!()
     }
 
-    async fn add_items(&self, _: String, _: Vec<Item>) -> Result<Vec<String>, CommandUseCaseError> {
+    async fn add_items(
+        &self,
+        _: Id<Tenant>,
+        _: Vec<Item>,
+    ) -> Result<Vec<Id<Item>>, CommandUseCaseError> {
         todo!()
     }
 
-    async fn remove_items(&self, _: String, _: Vec<String>) -> Result<(), CommandUseCaseError> {
+    async fn remove_items(
+        &self,
+        _: Id<Tenant>,
+        _: Vec<Id<Item>>,
+    ) -> Result<(), CommandUseCaseError> {
         todo!()
     }
 }

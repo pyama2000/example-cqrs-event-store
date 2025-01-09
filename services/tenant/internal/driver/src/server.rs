@@ -8,7 +8,10 @@ use proto::tenant::v1::{
     RemoveItemsResponse, FILE_DESCRIPTOR_SET,
 };
 use tokio::signal;
-use tonic::{Request, Response, Status};
+use tonic::{Code, Request, Response, Status};
+use tonic_types::{ErrorDetails, StatusExt};
+
+type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
 pub struct Service<C: CommandUseCaseExt> {
     command: C,
@@ -33,7 +36,7 @@ where
         self.command
             .create(Tenant::new(req.name))
             .await
-            .map(|id| Response::new(CreateResponse { id }))
+            .map(|id| Response::new(CreateResponse { id: id.to_string() }))
             // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
             .map_err(|e| Status::internal(e.to_string()))
     }
@@ -50,6 +53,15 @@ where
         req: Request<AddItemsRequest>,
     ) -> Result<Response<AddItemsResponse>, Status> {
         let AddItemsRequest { tenant_id, items } = req.into_inner();
+        let tenant_id = tenant_id.parse().map_err(|e: Error| {
+            Status::with_error_details(
+                Code::InvalidArgument,
+                format!("invalid tenant id: {tenant_id}"),
+                ErrorDetails::new()
+                    .add_bad_request_violation("tenant_id", e.to_string())
+                    .to_owned(),
+            )
+        })?;
         let items = items
             .into_iter()
             .map(|x| Item::new(x.name, x.price))
@@ -57,7 +69,11 @@ where
         self.command
             .add_items(tenant_id, items)
             .await
-            .map(|ids| Response::new(AddItemsResponse { ids }))
+            .map(|ids| {
+                Response::new(AddItemsResponse {
+                    ids: ids.into_iter().map(|x| x.to_string()).collect(),
+                })
+            })
             // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
             .map_err(|e| Status::internal(e.to_string()))
     }
@@ -70,6 +86,28 @@ where
             tenant_id,
             item_ids,
         } = req.into_inner();
+        let tenant_id = tenant_id.parse().map_err(|e: Error| {
+            Status::with_error_details(
+                Code::InvalidArgument,
+                format!("invalid tenant id: {tenant_id}"),
+                ErrorDetails::new()
+                    .add_bad_request_violation("tenant_id", e.to_string())
+                    .to_owned(),
+            )
+        })?;
+        let item_ids = item_ids
+            .iter()
+            .map(|x| x.parse())
+            .collect::<Result<_, _>>()
+            .map_err(|e: Error| {
+                Status::with_error_details(
+                    Code::InvalidArgument,
+                    format!("invalid item ids: {}", item_ids.join(",")),
+                    ErrorDetails::new()
+                        .add_bad_request_violation("item_ids", e.to_string())
+                        .to_owned(),
+                )
+            })?;
         self.command
             .remove_items(tenant_id, item_ids)
             .await

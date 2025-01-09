@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 thiserror = "1.0.65"
+uuid = { version = "1.11.0", features = ["v4"] }
 
 [lints]
 workspace = true

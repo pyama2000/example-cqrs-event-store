@@ -2,5 +2,8 @@
 
 /// コマンド操作関連のモジュール
 pub mod command;
+/// IDに関連するモジュール
+pub mod id;
 
 pub use command::{Aggregate, Command, CommandKernelError, CommandProcessor, Event, EventPayload};
+pub use id::Id;
