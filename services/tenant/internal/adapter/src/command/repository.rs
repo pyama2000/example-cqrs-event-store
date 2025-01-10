@@ -1,4 +1,4 @@
-use kernel::CommandProcessor;
+use kernel::{CommandProcessor, Id};
 
 /// コマンド操作を行うリポジトリ
 #[derive(Debug, Clone)]
@@ -13,7 +13,10 @@ impl CommandProcessor for CommandRepository {
         todo!()
     }
 
-    async fn get(&self, _id: ()) -> Result<Option<kernel::Aggregate>, kernel::CommandKernelError> {
+    async fn get(
+        &self,
+        _id: Id<kernel::Aggregate>,
+    ) -> Result<Option<kernel::Aggregate>, kernel::CommandKernelError> {
         todo!()
     }
 

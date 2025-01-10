@@ -13,5 +13,5 @@ pub mod processor;
 pub use command::Command;
 pub use error::CommandKernelError;
 pub use event::{Event, EventPayload};
-pub use model::Aggregate;
+pub use model::{Aggregate, Item};
 pub use processor::CommandProcessor;

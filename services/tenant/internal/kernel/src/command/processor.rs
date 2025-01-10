@@ -1,5 +1,7 @@
 use std::future::Future;
 
+use crate::Id;
+
 use super::{Aggregate, CommandKernelError, Event};
 
 pub trait CommandProcessor {
@@ -13,7 +15,7 @@ pub trait CommandProcessor {
     /// 集約を取得する
     fn get(
         &self,
-        id: (),
+        id: Id<Aggregate>,
     ) -> impl Future<Output = Result<Option<Aggregate>, CommandKernelError>> + Send;
 
     /// 集約を更新しイベントを追加する
