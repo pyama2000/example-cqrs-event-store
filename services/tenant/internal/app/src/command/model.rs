@@ -1,6 +1,8 @@
+use kernel::Id;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tenant {
-    name: String,
+    pub(crate) name: String,
 }
 
 impl Tenant {
@@ -13,8 +15,8 @@ impl Tenant {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Item {
-    name: String,
-    price: u32,
+    pub(crate) name: String,
+    pub(crate) price: u32,
 }
 
 impl Item {
@@ -22,5 +24,11 @@ impl Item {
     #[must_use]
     pub fn new(name: String, price: u32) -> Self {
         Self { name, price }
+    }
+}
+
+impl From<Item> for kernel::Item {
+    fn from(Item { name, price }: Item) -> Self {
+        Self::new(Id::generate(), name, price)
     }
 }

@@ -37,7 +37,6 @@ where
             .create(Tenant::new(req.name))
             .await
             .map(|id| Response::new(CreateResponse { id: id.to_string() }))
-            // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
             .map_err(|e| Status::internal(e.to_string()))
     }
 
@@ -74,7 +73,6 @@ where
                     ids: ids.into_iter().map(|x| x.to_string()).collect(),
                 })
             })
-            // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
             .map_err(|e| Status::internal(e.to_string()))
     }
 
@@ -112,7 +110,6 @@ where
             .remove_items(tenant_id, item_ids)
             .await
             .map(|()| Response::new(RemoveItemsResponse {}))
-            // TODO: エラー内容によって返すステータスコードを変更する / Richer Error Model を使う
             .map_err(|e| Status::internal(e.to_string()))
     }
 
