@@ -4,24 +4,26 @@ use kernel::{CommandProcessor, Id};
 
 use super::{CommandUseCaseError, Item, Tenant};
 
+type Result<T> = core::result::Result<T, CommandUseCaseError>;
+
 /// ユースケースのインターフェイス
 pub trait CommandUseCaseExt {
-    fn create(
-        &self,
-        tenant: Tenant,
-    ) -> impl Future<Output = Result<Id<Tenant>, CommandUseCaseError>> + Send;
+    /// テナントを作成する
+    fn create(&self, tenant: Tenant) -> impl Future<Output = Result<Id<Tenant>>> + Send;
 
+    /// テナントに商品を追加する
     fn add_items(
         &self,
         tenant_id: Id<Tenant>,
         items: Vec<Item>,
-    ) -> impl Future<Output = Result<Vec<Id<Item>>, CommandUseCaseError>> + Send;
+    ) -> impl Future<Output = Result<Vec<Id<Item>>>> + Send;
 
+    /// テナントから商品を削除する
     fn remove_items(
         &self,
         tenant_id: Id<Tenant>,
         item_ids: Vec<Id<Item>>,
-    ) -> impl Future<Output = Result<(), CommandUseCaseError>> + Send;
+    ) -> impl Future<Output = Result<()>> + Send;
 }
 
 /// ユースケースの実態
@@ -40,23 +42,15 @@ impl<P> CommandUseCaseExt for CommandUseCase<P>
 where
     P: CommandProcessor + Send + Sync + 'static,
 {
-    async fn create(&self, _: Tenant) -> Result<Id<Tenant>, CommandUseCaseError> {
+    async fn create(&self, _: Tenant) -> Result<Id<Tenant>> {
         todo!()
     }
 
-    async fn add_items(
-        &self,
-        _: Id<Tenant>,
-        _: Vec<Item>,
-    ) -> Result<Vec<Id<Item>>, CommandUseCaseError> {
+    async fn add_items(&self, _: Id<Tenant>, _: Vec<Item>) -> Result<Vec<Id<Item>>> {
         todo!()
     }
 
-    async fn remove_items(
-        &self,
-        _: Id<Tenant>,
-        _: Vec<Id<Item>>,
-    ) -> Result<(), CommandUseCaseError> {
+    async fn remove_items(&self, _: Id<Tenant>, _: Vec<Id<Item>>) -> Result<()> {
         todo!()
     }
 }
