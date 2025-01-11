@@ -74,8 +74,9 @@ where
         let events = aggregate
             .apply_command(Command::AddItems { items })
             .map_err(|e| match e {
-                kernel::CommandKernelError::AggregateVersionOverflowed
-                | kernel::CommandKernelError::EventOverflowed => CommandUseCaseError::Overflowed,
+                kernel::CommandKernelError::AggregateVersionOverflowed => {
+                    CommandUseCaseError::Overflowed
+                }
                 kernel::CommandKernelError::InvalidItemName
                 | kernel::CommandKernelError::EmptyItems => CommandUseCaseError::InvalidArgument,
                 kernel::CommandKernelError::Unknown(e) => CommandUseCaseError::Unknown(e),
@@ -94,8 +95,9 @@ where
         let events = aggregate
             .apply_command(Command::RemoveItems { item_ids })
             .map_err(|e| match e {
-                kernel::CommandKernelError::AggregateVersionOverflowed
-                | kernel::CommandKernelError::EventOverflowed => CommandUseCaseError::Overflowed,
+                kernel::CommandKernelError::AggregateVersionOverflowed => {
+                    CommandUseCaseError::Overflowed
+                }
                 kernel::CommandKernelError::EmptyItemIds => CommandUseCaseError::InvalidArgument,
                 kernel::CommandKernelError::Unknown(e) => CommandUseCaseError::Unknown(e),
                 _ => CommandUseCaseError::KernelError(e),

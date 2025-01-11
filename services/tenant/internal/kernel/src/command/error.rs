@@ -8,8 +8,6 @@ pub enum CommandKernelError {
     AggregateAlreadyCreated,
     #[error("Cannot update Aggregate version")]
     AggregateVersionOverflowed,
-    #[error("Cannot add new event")]
-    EventOverflowed,
     #[error("Invalid tenant name")]
     InvalidTenantName,
     #[error("Invalid item name")]

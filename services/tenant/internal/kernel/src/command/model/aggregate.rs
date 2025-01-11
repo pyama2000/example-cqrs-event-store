@@ -1,4 +1,4 @@
-use crate::{Command, CommandKernelError, Event, EventPayload, Id};
+use crate::{Command, CommandKernelError, Event, Id};
 
 use super::Item;
 
@@ -9,25 +9,16 @@ pub struct Aggregate {
     items: Vec<Item>,
     /// 集約のバージョン
     version: u64,
-    /// イベントのバージョン
-    event_version: u64,
 }
 
 impl Aggregate {
     #[must_use]
-    pub fn new(
-        id: Id<Aggregate>,
-        name: String,
-        items: Vec<Item>,
-        version: u64,
-        event_version: u64,
-    ) -> Self {
+    pub fn new(id: Id<Aggregate>, name: String, items: Vec<Item>, version: u64) -> Self {
         Self {
             id,
             name,
             items,
             version,
-            event_version,
         }
     }
 
@@ -55,12 +46,6 @@ impl Aggregate {
         self.version
     }
 
-    /// イベントのバージョン
-    #[must_use]
-    pub fn event_version(&self) -> u64 {
-        self.event_version
-    }
-
     /// 集約にコマンドを実行する
     ///
     /// # Errors
@@ -85,16 +70,16 @@ impl Aggregate {
             return Err(CommandKernelError::EmptyItemIds);
         }
 
-        let event_payloads: Vec<EventPayload> = command.into();
-        for payload in &event_payloads {
+        let events: Vec<Event> = command.into();
+        for payload in &events {
             match payload {
-                EventPayload::Created { name } => self.name = name.to_string(),
-                EventPayload::ItemsAdded { items } => {
+                Event::Created { name } => self.name = name.to_string(),
+                Event::ItemsAdded { items } => {
                     for item in items {
                         self.items.push(item.clone());
                     }
                 }
-                EventPayload::ItemsRemoved { item_ids } => {
+                Event::ItemsRemoved { item_ids } => {
                     self.items.retain(|x| !item_ids.contains(x.id()));
                 }
             }
@@ -103,27 +88,13 @@ impl Aggregate {
             .version
             .checked_add(1)
             .ok_or_else(|| CommandKernelError::AggregateVersionOverflowed)?;
-        let events: Vec<_> = event_payloads
-            .into_iter()
-            .enumerate()
-            .map(|(i, payload)| {
-                let id = self
-                    .event_version
-                    .checked_add(
-                        u64::try_from(i + 1).map_err(|e| CommandKernelError::Unknown(e.into()))?,
-                    )
-                    .ok_or_else(|| CommandKernelError::EventOverflowed)?;
-                self.event_version = id;
-                Ok::<_, CommandKernelError>(Event::new(id, payload))
-            })
-            .collect::<Result<_, _>>()?;
         Ok(events)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{Aggregate, Command, CommandKernelError, Event, EventPayload, Id, Item};
+    use crate::{Aggregate, Command, CommandKernelError, Event, Id, Item};
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -157,14 +128,10 @@ mod tests {
                     name: tenant_name.clone(),
                     items: Vec::new(),
                     version: 1,
-                    event_version: 1,
                 },
-                expected_events: vec![Event::new(
-                    1,
-                    EventPayload::Created {
-                        name: tenant_name.clone(),
-                    },
-                )],
+                expected_events: vec![Event::Created {
+                    name: tenant_name.clone(),
+                }],
             },
             TestCase {
                 name: "商品追加コマンド実行時、集約に商品が追加され商品追加イベントが返る",
@@ -173,7 +140,6 @@ mod tests {
                     name: tenant_name.clone(),
                     items: Vec::new(),
                     version: 1,
-                    event_version: 1,
                 },
                 command: Command::AddItems {
                     items: vec![Item::new(item_id.clone(), item_name.clone(), 1000)],
@@ -183,14 +149,10 @@ mod tests {
                     name: tenant_name.clone(),
                     items: vec![Item::new(item_id.clone(), item_name.clone(), 1000)],
                     version: 2,
-                    event_version: 2,
                 },
-                expected_events: vec![Event::new(
-                    2,
-                    EventPayload::ItemsAdded {
-                        items: vec![Item::new(item_id.clone(), item_name.clone(), 1000)],
-                    },
-                )],
+                expected_events: vec![Event::ItemsAdded {
+                    items: vec![Item::new(item_id.clone(), item_name.clone(), 1000)],
+                }],
             },
             TestCase {
                 name: "商品追加コマンド実行時、集約に商品が追加され商品追加イベントが返る",
@@ -199,7 +161,6 @@ mod tests {
                     name: tenant_name.clone(),
                     items: vec![Item::new(item_id.clone(), item_name.clone(), 1000)],
                     version: 2,
-                    event_version: 2,
                 },
                 command: Command::AddItems {
                     items: vec![Item::new(item_id.clone(), item_name.clone(), 2000)],
@@ -212,14 +173,10 @@ mod tests {
                         Item::new(item_id.clone(), item_name.clone(), 2000),
                     ],
                     version: 3,
-                    event_version: 3,
                 },
-                expected_events: vec![Event::new(
-                    3,
-                    EventPayload::ItemsAdded {
-                        items: vec![Item::new(item_id.clone(), item_name.clone(), 2000)],
-                    },
-                )],
+                expected_events: vec![Event::ItemsAdded {
+                    items: vec![Item::new(item_id.clone(), item_name.clone(), 2000)],
+                }],
             },
             TestCase {
                 name: "商品削除コマンド実行時、集約から商品が削除され商品削除イベントが返る",
@@ -231,7 +188,6 @@ mod tests {
                         Item::new(item_id_2.clone(), item_name.clone(), 2000),
                     ],
                     version: 2,
-                    event_version: 2,
                 },
                 command: Command::RemoveItems {
                     item_ids: vec![item_id.clone()],
@@ -241,14 +197,10 @@ mod tests {
                     name: tenant_name.clone(),
                     items: vec![Item::new(item_id_2.clone(), item_name.clone(), 2000)],
                     version: 3,
-                    event_version: 3,
                 },
-                expected_events: vec![Event::new(
-                    3,
-                    EventPayload::ItemsRemoved {
-                        item_ids: vec![item_id.clone()],
-                    },
-                )],
+                expected_events: vec![Event::ItemsRemoved {
+                    item_ids: vec![item_id.clone()],
+                }],
             },
             TestCase {
                 name: "商品削除コマンド実行時、集約から商品が削除され商品削除イベントが返る",
@@ -260,7 +212,6 @@ mod tests {
                         Item::new(item_id_2.clone(), item_name.clone(), 2000),
                     ],
                     version: 2,
-                    event_version: 2,
                 },
                 command: Command::RemoveItems {
                     item_ids: vec![item_id.clone(), item_id_2.clone()],
@@ -270,14 +221,10 @@ mod tests {
                     name: tenant_name.clone(),
                     items: Vec::new(),
                     version: 3,
-                    event_version: 3,
                 },
-                expected_events: vec![Event::new(
-                    3,
-                    EventPayload::ItemsRemoved {
-                        item_ids: vec![item_id.clone(), item_id_2.clone()],
-                    },
-                )],
+                expected_events: vec![Event::ItemsRemoved {
+                    item_ids: vec![item_id.clone(), item_id_2.clone()],
+                }],
             },
         ];
         for TestCase {
@@ -402,23 +349,6 @@ mod tests {
                 assert: |name, actual| {
                     assert!(
                         matches!(actual, CommandKernelError::AggregateVersionOverflowed),
-                        "{name}"
-                    );
-                },
-            },
-            TestCase {
-                name: "イベントのバージョンが最大値の集約にコマンド実行時はEventOverflowedが返る",
-                aggregate: Aggregate {
-                    version: 1,
-                    event_version: u64::MAX,
-                    ..Default::default()
-                },
-                command: Command::RemoveItems {
-                    item_ids: vec![Id::generate()],
-                },
-                assert: |name, actual| {
-                    assert!(
-                        matches!(actual, CommandKernelError::EventOverflowed),
                         "{name}"
                     );
                 },
