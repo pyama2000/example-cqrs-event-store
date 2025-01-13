@@ -9,7 +9,7 @@ pub trait CommandProcessor {
     fn create(
         &self,
         aggregate: Aggregate,
-        events: Vec<Event>,
+        event: Event,
     ) -> impl Future<Output = Result<(), CommandKernelError>> + Send;
 
     /// 集約を取得する

@@ -3,4 +3,4 @@
 /// コマンド操作関連のモジュール
 pub mod command;
 
-pub use command::CommandRepository;
+pub use command::{dynamodb, CommandRepository};

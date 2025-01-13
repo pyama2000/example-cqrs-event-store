@@ -17,5 +17,15 @@ pub enum CommandKernelError {
     #[error("Item ids are empty")]
     EmptyItemIds,
     #[error(transparent)]
+    ProcessorError(#[from] CommandProcessorError),
+    #[error(transparent)]
     Unknown(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+}
+
+#[derive(Debug, Error)]
+pub enum CommandProcessorError {
+    #[error("Empty event")]
+    EmptyEvent,
+    #[error("Invalid event")]
+    InvalidEvent,
 }

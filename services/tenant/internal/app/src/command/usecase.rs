@@ -47,7 +47,13 @@ where
         let aggregate_id = aggregate.id().clone();
         let events = aggregate.apply_command(Command::Create { name: tenant.name })?;
         self.processor
-            .create(aggregate, events)
+            .create(
+                aggregate,
+                events
+                    .first()
+                    .ok_or_else(|| CommandUseCaseError::Unknown("event not returned".into()))?
+                    .clone(),
+            )
             .await
             .map_err(|e| match e {
                 kernel::CommandKernelError::InvalidTenantName => {

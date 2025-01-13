@@ -5,4 +5,8 @@ pub mod persistence;
 /// リポジトリ関連のモジュール
 pub mod repository;
 
+pub(crate) use model::{AggregateModel, EventSequenceModel, EventStoreModel};
+#[cfg(test)]
+pub(crate) use model::{AggregatePayload, EventPayload, Item};
+pub use persistence::dynamodb;
 pub use repository::CommandRepository;
