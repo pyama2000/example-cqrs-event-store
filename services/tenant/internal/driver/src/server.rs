@@ -33,11 +33,21 @@ where
         req: Request<CreateRequest>,
     ) -> Result<Response<CreateResponse>, Status> {
         let req = req.into_inner();
+        let name = req.name;
         self.command
-            .create(Tenant::new(req.name))
+            .create(Tenant::new(name.clone()))
             .await
             .map(|id| Response::new(CreateResponse { id: id.to_string() }))
-            .map_err(|e| Status::internal(e.to_string()))
+            .map_err(|e| match e {
+                app::CommandUseCaseError::InvalidArgument => Status::with_error_details(
+                    Code::InvalidArgument,
+                    e.to_string(),
+                    ErrorDetails::new()
+                        .add_bad_request_violation("name", format!("invalid tenant name: {name}"))
+                        .to_owned(),
+                ),
+                e => Status::unknown(e.to_string()),
+            })
     }
 
     async fn list_tenants(

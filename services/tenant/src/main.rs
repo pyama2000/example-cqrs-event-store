@@ -6,7 +6,7 @@ use driver::server::{Server, Service};
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
     let addr = format!(
-        "0.0.0.0:{}",
+        "[::1]:{}",
         std::env::var("PORT").map_err(|e| format!("PORT must be set: {e:?}"))?
     );
     let server = Server::new(Service::new(CommandUseCase::new(CommandRepository::new(

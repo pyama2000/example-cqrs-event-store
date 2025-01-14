@@ -9,4 +9,6 @@ pub(crate) use model::{AggregateModel, EventSequenceModel, EventStoreModel};
 #[cfg(test)]
 pub(crate) use model::{AggregatePayload, EventPayload, Item};
 pub use persistence::dynamodb;
-pub use repository::CommandRepository;
+pub use repository::{
+    CommandRepository, AGGREGATE_TABLE_NAME, EVENT_SEQUENCE_TABLE_NAME, EVENT_STORE_TABLE_NAME,
+};

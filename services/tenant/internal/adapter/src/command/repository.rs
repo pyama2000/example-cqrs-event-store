@@ -4,9 +4,9 @@ use kernel::{CommandKernelError, CommandProcessor, Event, Id};
 
 use super::{AggregateModel, EventSequenceModel, EventStoreModel};
 
-const EVENT_SEQUENCE_TABLE_NAME: &str = "tenant-event-version";
-const EVENT_STORE_TABLE_NAME: &str = "tenant-event-store";
-const AGGREGATE_TABLE_NAME: &str = "tenant-aggregate";
+pub const EVENT_SEQUENCE_TABLE_NAME: &str = "tenant-event-version";
+pub const EVENT_STORE_TABLE_NAME: &str = "tenant-event-store";
+pub const AGGREGATE_TABLE_NAME: &str = "tenant-aggregate";
 
 /// コマンド操作を行うリポジトリ
 #[derive(Debug, Clone)]

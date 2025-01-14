@@ -45,7 +45,14 @@ where
     async fn create(&self, tenant: Tenant) -> Result<Id<Aggregate>> {
         let mut aggregate = Aggregate::default();
         let aggregate_id = aggregate.id().clone();
-        let events = aggregate.apply_command(Command::Create { name: tenant.name })?;
+        let events = aggregate
+            .apply_command(Command::Create { name: tenant.name })
+            .map_err(|e| match e {
+                kernel::CommandKernelError::InvalidTenantName => {
+                    CommandUseCaseError::InvalidArgument
+                }
+                e => CommandUseCaseError::KernelError(e),
+            })?;
         self.processor
             .create(
                 aggregate,
@@ -54,14 +61,7 @@ where
                     .ok_or_else(|| CommandUseCaseError::Unknown("event not returned".into()))?
                     .clone(),
             )
-            .await
-            .map_err(|e| match e {
-                kernel::CommandKernelError::InvalidTenantName => {
-                    CommandUseCaseError::InvalidArgument
-                }
-                kernel::CommandKernelError::Unknown(e) => CommandUseCaseError::Unknown(e),
-                _ => CommandUseCaseError::KernelError(e),
-            })?;
+            .await?;
         Ok(aggregate_id)
     }
 
