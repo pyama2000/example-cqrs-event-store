@@ -98,6 +98,15 @@ where
             .get(id)
             .await?
             .ok_or_else(|| CommandUseCaseError::NotFound)?;
+        // テナントの商品にないIDを削除する
+        let item_ids: Vec<_> = item_ids
+            .into_iter()
+            .filter(|id| aggregate.items().iter().any(|item| item.id() == id))
+            .collect();
+        if item_ids.is_empty() {
+            // NOTE: 引数に指定された全ての商品IDがテナントに存在しない場合は集約の更新・イベントの作成をせずに処理を終了する
+            return Ok(());
+        }
         let events = aggregate
             .apply_command(Command::RemoveItems { item_ids })
             .map_err(|e| match e {
