@@ -1,12 +1,16 @@
+use adapter::QueryRepository;
 use adapter::{dynamodb, CommandRepository};
 use app::CommandUseCase;
+use app::QueryUseCase;
 use aws_config::BehaviorVersion;
 use backon::{ExponentialBuilder, Retryable};
 use driver::server::Server;
 use driver::server::Service;
 use proto::tenant::v1::add_items_request::Item;
 use proto::tenant::v1::tenant_service_client::TenantServiceClient;
-use proto::tenant::v1::{AddItemsRequest, CreateRequest, RemoveItemsRequest};
+use proto::tenant::v1::{
+    AddItemsRequest, CreateRequest, ListItemsRequest, ListTenantsRequest, RemoveItemsRequest,
+};
 use rand::Rng;
 use testcontainers::ContainerAsync;
 use testcontainers_modules::dynamodb_local::DynamoDb;
@@ -29,6 +33,8 @@ async fn test_with_container_command_ok() -> Result<(), Error> {
         })
         .await?;
     let tenant_id = res.into_inner().id;
+    let res = client.list_tenants(ListTenantsRequest {}).await?;
+    assert_eq!(res.into_inner().tenants.len(), 1);
     let res = client
         .add_items(AddItemsRequest {
             tenant_id: tenant_id.clone(),
@@ -49,6 +55,19 @@ async fn test_with_container_command_ok() -> Result<(), Error> {
         })
         .await?;
     let item_ids = res.into_inner().ids;
+    let res = client
+        .list_items(ListItemsRequest {
+            tenant_id: tenant_id.clone(),
+        })
+        .await?;
+    assert_eq!(
+        item_ids,
+        res.into_inner()
+            .items
+            .into_iter()
+            .map(|x| x.id)
+            .collect::<Vec<_>>()
+    );
     client
         .remove_items(RemoveItemsRequest {
             tenant_id,
@@ -190,9 +209,10 @@ impl Context {
             .send()
             .await?;
 
-        let server = Server::new(Service::new(CommandUseCase::new(CommandRepository::new(
-            dynamodb,
-        ))));
+        let server = Server::new(Service::new(
+            CommandUseCase::new(CommandRepository::new(dynamodb.clone())),
+            QueryUseCase::new(QueryRepository::new(dynamodb)),
+        ));
         let port = {
             let mut rng = rand::thread_rng();
             rng.gen_range(50000..60000)
@@ -229,9 +249,11 @@ impl Context {
             .test_credentials()
             .load()
             .await;
-        let server = Server::new(Service::new(CommandUseCase::new(CommandRepository::new(
-            dynamodb(&config),
-        ))));
+        let dynamodb = dynamodb(&config);
+        let server = Server::new(Service::new(
+            CommandUseCase::new(CommandRepository::new(dynamodb.clone())),
+            QueryUseCase::new(QueryRepository::new(dynamodb)),
+        ));
         let port = {
             let mut rng = rand::thread_rng();
             rng.gen_range(50000..60000)

@@ -1,5 +1,5 @@
-/// 集約を操作するコマンドを定義するモジュール
 #[allow(clippy::module_inception)]
+/// 集約を操作するコマンドを定義するモジュール
 pub mod command;
 /// エラーを定義したモジュール
 pub mod error;

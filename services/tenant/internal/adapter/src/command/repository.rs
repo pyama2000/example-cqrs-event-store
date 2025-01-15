@@ -2,11 +2,9 @@ use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem, Update};
 use kernel::command::error::CommandProcessorError;
 use kernel::{CommandKernelError, CommandProcessor, Event, Id};
 
-use super::{AggregateModel, EventSequenceModel, EventStoreModel};
+use crate::{AGGREGATE_TABLE_NAME, EVENT_SEQUENCE_TABLE_NAME, EVENT_STORE_TABLE_NAME};
 
-pub const EVENT_SEQUENCE_TABLE_NAME: &str = "tenant-event-version";
-pub const EVENT_STORE_TABLE_NAME: &str = "tenant-event-store";
-pub const AGGREGATE_TABLE_NAME: &str = "tenant-aggregate";
+use super::{AggregateModel, EventSequenceModel, EventStoreModel};
 
 /// コマンド操作を行うリポジトリ
 #[derive(Debug, Clone)]

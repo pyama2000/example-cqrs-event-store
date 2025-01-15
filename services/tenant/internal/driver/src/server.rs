@@ -1,37 +1,44 @@
 use std::net::SocketAddr;
 
-use app::{CommandUseCaseExt, Item, Tenant};
+use app::{CommandUseCaseExt, QueryUseCaseExt};
 use proto::tenant::v1::tenant_service_server::{TenantService, TenantServiceServer};
 use proto::tenant::v1::{
     AddItemsRequest, AddItemsResponse, CreateRequest, CreateResponse, ListItemsRequest,
     ListItemsResponse, ListTenantsRequest, ListTenantsResponse, RemoveItemsRequest,
     RemoveItemsResponse, FILE_DESCRIPTOR_SET,
 };
-use tokio::signal;
 use tonic::{Code, Request, Response, Status};
 use tonic_types::{ErrorDetails, StatusExt};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 
-pub struct Service<C: CommandUseCaseExt> {
+pub struct Service<C: CommandUseCaseExt, Q: QueryUseCaseExt> {
     command: C,
+    query: Q,
 }
 
-impl<C: CommandUseCaseExt> Service<C> {
-    pub fn new(command: C) -> Self {
-        Self { command }
+impl<C, Q> Service<C, Q>
+where
+    C: CommandUseCaseExt,
+    Q: QueryUseCaseExt,
+{
+    pub fn new(command: C, query: Q) -> Self {
+        Self { command, query }
     }
 }
 
 #[tonic::async_trait]
-impl<C> TenantService for Service<C>
+impl<C, Q> TenantService for Service<C, Q>
 where
     C: CommandUseCaseExt + Send + Sync + 'static,
+    Q: QueryUseCaseExt + Send + Sync + 'static,
 {
     async fn create(
         &self,
         req: Request<CreateRequest>,
     ) -> Result<Response<CreateResponse>, Status> {
+        use app::Tenant;
+
         let req = req.into_inner();
         let name = req.name;
         self.command
@@ -54,13 +61,30 @@ where
         &self,
         _: Request<ListTenantsRequest>,
     ) -> Result<Response<ListTenantsResponse>, Status> {
-        todo!()
+        use proto::tenant::v1::list_tenants_response::Tenant;
+
+        self.query
+            .list_tenants()
+            .await
+            .map(|tenants| {
+                let tenants: Vec<_> = tenants
+                    .into_iter()
+                    .map(|t| Tenant {
+                        id: t.id().to_string(),
+                        name: t.name().to_string(),
+                    })
+                    .collect();
+                Response::new(ListTenantsResponse { tenants })
+            })
+            .map_err(|e| Status::unknown(e.to_string()))
     }
 
     async fn add_items(
         &self,
         req: Request<AddItemsRequest>,
     ) -> Result<Response<AddItemsResponse>, Status> {
+        use app::Item;
+
         let AddItemsRequest { tenant_id, items } = req.into_inner();
         let tenant_id = tenant_id.parse().map_err(|e: Error| {
             Status::with_error_details(
@@ -125,22 +149,52 @@ where
 
     async fn list_items(
         &self,
-        _: Request<ListItemsRequest>,
+        req: Request<ListItemsRequest>,
     ) -> Result<Response<ListItemsResponse>, Status> {
-        todo!()
+        use proto::tenant::v1::list_items_response::Item;
+
+        let ListItemsRequest { tenant_id } = req.into_inner();
+        let tenant_id = tenant_id.parse().map_err(|e: Error| {
+            Status::with_error_details(
+                Code::InvalidArgument,
+                format!("invalid tenant id: {tenant_id}"),
+                ErrorDetails::new()
+                    .add_bad_request_violation("tenant_id", e.to_string())
+                    .to_owned(),
+            )
+        })?;
+        if let Some(items) = self
+            .query
+            .list_items(tenant_id)
+            .await
+            .map_err(|e| Status::unknown(e.to_string()))?
+        {
+            let items: Vec<_> = items
+                .into_iter()
+                .map(|i| Item {
+                    id: i.id().to_string(),
+                    name: i.name().to_string(),
+                    price: i.price(),
+                })
+                .collect();
+            Ok(Response::new(ListItemsResponse { items }))
+        } else {
+            Err(Status::not_found("tenant not found"))
+        }
     }
 }
 
-pub struct Server<C: CommandUseCaseExt> {
-    service: Service<C>,
+pub struct Server<C: CommandUseCaseExt, Q: QueryUseCaseExt> {
+    service: Service<C, Q>,
 }
 
-impl<C> Server<C>
+impl<C, Q> Server<C, Q>
 where
     C: CommandUseCaseExt + Send + Sync + 'static,
+    Q: QueryUseCaseExt + Send + Sync + 'static,
 {
     #[must_use]
-    pub fn new(service: Service<C>) -> Self {
+    pub fn new(service: Service<C, Q>) -> Self {
         Self { service }
     }
 
@@ -169,6 +223,8 @@ where
 
 /// サーバーを安全に終了するための仕組み(Graceful shutdown)
 async fn shutdown_signal() {
+    use tokio::signal;
+
     let ctrl_c = async {
         signal::ctrl_c()
             .await

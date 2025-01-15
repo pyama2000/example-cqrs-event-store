@@ -1,5 +1,5 @@
-use adapter::{dynamodb, CommandRepository};
-use app::CommandUseCase;
+use adapter::{dynamodb, CommandRepository, QueryRepository};
+use app::{CommandUseCase, QueryUseCase};
 use aws_config::BehaviorVersion;
 use driver::server::{Server, Service};
 
@@ -9,9 +9,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         "[::1]:{}",
         std::env::var("PORT").map_err(|e| format!("PORT must be set: {e:?}"))?
     );
-    let server = Server::new(Service::new(CommandUseCase::new(CommandRepository::new(
-        dynamodb(&aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await),
-    ))));
+    let dynamodb = dynamodb(&aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await);
+    let server = Server::new(Service::new(
+        CommandUseCase::new(CommandRepository::new(dynamodb.clone())),
+        QueryUseCase::new(QueryRepository::new(dynamodb)),
+    ));
     println!("listing on: {addr}");
     server.run(addr.parse()?).await?;
     Ok(())
