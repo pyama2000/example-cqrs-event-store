@@ -4,6 +4,7 @@ use crate::Id;
 
 use super::{Aggregate, CommandKernelError, Event};
 
+#[cfg_attr(feature = "test", mockall::automock)]
 pub trait CommandProcessor {
     /// 集約とイベントを作成する
     fn create(

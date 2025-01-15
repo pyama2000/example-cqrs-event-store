@@ -4,8 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+mockall = { version = "0.13.1", optional = true }
 thiserror = "1.0.65"
 uuid = { version = "1.11.0", features = ["v4"] }
+
+[features]
+test = ["dep:mockall"]
 
 [lints]
 workspace = true
