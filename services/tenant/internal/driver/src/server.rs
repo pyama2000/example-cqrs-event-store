@@ -206,12 +206,30 @@ where
         self,
         addr: SocketAddr,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+        use std::time::Duration;
+
+        use tower_http::catch_panic::CatchPanicLayer;
+
         let tenant_service = TenantServiceServer::new(self.service);
         let reflection_service = tonic_reflection::server::Builder::configure()
             .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
             .build_v1()?;
         let (_, health_service) = tonic_health::server::health_reporter();
         tonic::transport::Server::builder()
+            .timeout(Duration::from_millis(500))
+            .layer(CatchPanicLayer::custom(
+                |any: Box<dyn std::any::Any + Send>| {
+                    let message = if let Some(s) = any.downcast_ref::<String>() {
+                        s.clone()
+                    } else if let Some(s) = any.downcast_ref::<&str>() {
+                        (*s).to_string()
+                    } else {
+                        "unknown panic occured".to_string()
+                    };
+                    let err = format!("panic: {message}");
+                    Status::unknown(err).into_http()
+                },
+            ))
             .add_service(tenant_service)
             .add_service(reflection_service)
             .add_service(health_service)
