@@ -9,7 +9,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         "[::1]:{}",
         std::env::var("PORT").map_err(|e| format!("PORT must be set: {e:?}"))?
     );
-    let dynamodb = dynamodb(&aws_config::load_defaults(BehaviorVersion::v2024_03_28()).await);
+    let config = aws_config::defaults(BehaviorVersion::v2024_03_28())
+        .endpoint_url(format!(
+            "http://localhost:{}",
+            std::env::var("LOCALSTACK_GATEWAY_PORT").unwrap_or("4566".to_string())
+        ))
+        .test_credentials()
+        .load()
+        .await;
+    let dynamodb = dynamodb(&config);
     let server = Server::new(Service::new(
         CommandUseCase::new(CommandRepository::new(dynamodb.clone())),
         QueryUseCase::new(QueryRepository::new(dynamodb)),

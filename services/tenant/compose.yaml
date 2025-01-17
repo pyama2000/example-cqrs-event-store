@@ -1,0 +1,40 @@
+services:
+  tenant-localstack:
+    image: localstack/localstack@sha256:722a22bc441ffcaffa434c1720b04f8bfec60cc24b419ebdc4343cc43908de7f
+    ports:
+      - "${LOCALSTACK_GATEWAY_PORT:-4566}:4566"
+      - "${LOCALSTACK_EXTERNAL_SERVICE_PORT_RANGE:-4510-4559}:4510-4559"
+    volumes:
+      - "${DOCKER_HOST_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+  # NOTE: ./terraformディレクトリをバインドマウントして名前付きボリューム(tenant-terraform-volume)にコピーする
+  tenant-terraform-setup:
+    image: bash:latest
+    volumes:
+      - ./terraform:/terraform-origin
+      - tenant-terraform-volume:/terraform
+    command: ["cp", "-rT", "/terraform-origin", "/terraform"]
+  tenant-terraform-init:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    volumes:
+      - tenant-terraform-volume:/terraform
+    command: ["init"]
+    depends_on:
+      tenant-terraform-setup:
+        condition: service_completed_successfully
+  tenant-terraform-apply:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    environment:
+      TF_VAR_aws_service_endpoint: "http://tenant-localstack:${LOCALSTACK_GATEWAY_PORT:-4566}"
+    volumes:
+      - tenant-terraform-volume:/terraform
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      tenant-localstack:
+        condition: service_started
+      tenant-terraform-init:
+        condition: service_completed_successfully
+volumes:
+  tenant-terraform-volume:
+    name: tenant-terraform
