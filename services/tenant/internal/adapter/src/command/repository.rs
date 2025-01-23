@@ -1,6 +1,7 @@
 use aws_sdk_dynamodb::types::{AttributeValue, Put, TransactWriteItem, Update};
 use kernel::command::error::CommandProcessorError;
 use kernel::{CommandKernelError, CommandProcessor, Event, Id};
+use tracing::instrument;
 
 use crate::{AGGREGATE_TABLE_NAME, EVENT_SEQUENCE_TABLE_NAME, EVENT_STORE_TABLE_NAME};
 
@@ -21,6 +22,7 @@ impl CommandRepository {
 }
 
 impl CommandProcessor for CommandRepository {
+    #[instrument(skip(self), err, ret)]
     async fn create(
         &self,
         aggregate: kernel::Aggregate,
@@ -86,6 +88,7 @@ impl CommandProcessor for CommandRepository {
         Ok(())
     }
 
+    #[instrument(skip(self), err, ret)]
     async fn get(
         &self,
         id: Id<kernel::Aggregate>,
@@ -115,6 +118,7 @@ impl CommandProcessor for CommandRepository {
     }
 
     #[allow(clippy::too_many_lines)]
+    #[instrument(skip(self), err, ret)]
     async fn update(
         &self,
         aggregate: kernel::Aggregate,

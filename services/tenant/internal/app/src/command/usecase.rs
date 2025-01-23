@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use kernel::{Aggregate, Command, CommandProcessor, Id};
+use tracing::instrument;
 
 use super::{CommandUseCaseError, Item, Tenant};
 
@@ -42,6 +43,7 @@ impl<P> CommandUseCaseExt for CommandUseCase<P>
 where
     P: CommandProcessor + Send + Sync + 'static,
 {
+    #[instrument(skip(self), err, ret)]
     async fn create(&self, tenant: Tenant) -> Result<Id<Aggregate>> {
         let mut aggregate = Aggregate::default();
         let aggregate_id = aggregate.id().clone();
@@ -65,6 +67,7 @@ where
         Ok(aggregate_id)
     }
 
+    #[instrument(skip(self), err, ret)]
     async fn add_items(
         &self,
         id: Id<Aggregate>,
@@ -92,6 +95,7 @@ where
         Ok(item_ids)
     }
 
+    #[instrument(skip(self), err, ret)]
     async fn remove_items(&self, id: Id<Aggregate>, item_ids: Vec<Id<kernel::Item>>) -> Result<()> {
         let mut aggregate = self
             .processor

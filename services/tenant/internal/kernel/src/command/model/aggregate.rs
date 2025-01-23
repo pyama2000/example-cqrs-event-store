@@ -1,3 +1,5 @@
+use tracing::instrument;
+
 use crate::{Command, CommandKernelError, Event, Id};
 
 use super::Item;
@@ -49,6 +51,7 @@ impl Aggregate {
     /// 集約にコマンドを実行する
     ///
     /// # Errors
+    #[instrument(skip(self), err, ret)]
     pub fn apply_command(&mut self, command: Command) -> Result<Vec<Event>, CommandKernelError> {
         if !matches!(&command, Command::Create { .. }) && self.version == 0 {
             return Err(CommandKernelError::AggregateNotCreated);

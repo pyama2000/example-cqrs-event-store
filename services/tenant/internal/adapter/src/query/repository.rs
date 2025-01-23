@@ -1,4 +1,5 @@
 use kernel::QueryProcessor;
+use tracing::instrument;
 
 use crate::AGGREGATE_TABLE_NAME;
 
@@ -20,6 +21,7 @@ impl QueryRepository {
 }
 
 impl QueryProcessor for QueryRepository {
+    #[instrument(skip(self), err, ret)]
     async fn list_tenants(&self) -> Result<Vec<kernel::query::Tenant>, Error> {
         let models: Vec<AggregateModel> = serde_dynamo::from_items(
             self.dynamodb
@@ -33,6 +35,7 @@ impl QueryProcessor for QueryRepository {
         Ok(models.into_iter().map(Into::into).collect())
     }
 
+    #[instrument(skip(self), err, ret)]
     async fn list_items(
         &self,
         tenant_id: kernel::Id<kernel::Aggregate>,

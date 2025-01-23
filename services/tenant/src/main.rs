@@ -3,8 +3,13 @@ use app::{CommandUseCase, QueryUseCase};
 use aws_config::BehaviorVersion;
 use driver::server::{Server, Service};
 
+use self::observability::instrument;
+
+mod observability;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let shutdown_providers = instrument()?;
     let addr = format!(
         "[::1]:{}",
         std::env::var("PORT").map_err(|e| format!("PORT must be set: {e:?}"))?
@@ -22,7 +27,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         CommandUseCase::new(CommandRepository::new(dynamodb.clone())),
         QueryUseCase::new(QueryRepository::new(dynamodb)),
     ));
-    println!("listing on: {addr}");
+    tracing::info!("listing on: {addr}");
     server.run(addr.parse()?).await?;
+    shutdown_providers()?;
     Ok(())
 }

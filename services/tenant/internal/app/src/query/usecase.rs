@@ -1,6 +1,7 @@
 use std::future::Future;
 
 use kernel::{Aggregate, Id, QueryProcessor};
+use tracing::instrument;
 
 use super::{Item, Tenant};
 
@@ -35,6 +36,7 @@ impl<P> QueryUseCaseExt for QueryUseCase<P>
 where
     P: QueryProcessor + Send + Sync + 'static,
 {
+    #[instrument(skip(self), err, ret)]
     async fn list_tenants(&self) -> Result<Vec<Tenant>> {
         Ok(self
             .processor
@@ -45,6 +47,7 @@ where
             .collect())
     }
 
+    #[instrument(skip(self), err, ret)]
     async fn list_items(&self, tenant_id: Id<Aggregate>) -> Result<Option<Vec<Item>>> {
         Ok(self
             .processor
