@@ -73,20 +73,21 @@ impl Aggregate {
             return Err(CommandKernelError::EmptyItemIds);
         }
 
-        let events: Vec<Event> = command.into();
-        for payload in &events {
-            match payload {
-                Event::Created { name } => self.name = name.to_string(),
-                Event::ItemsAdded { items } => {
-                    for item in items {
-                        self.items.push(item.clone());
-                    }
-                }
-                Event::ItemsRemoved { item_ids } => {
-                    self.items.retain(|x| !item_ids.contains(x.id()));
-                }
+        let events: Vec<Event> = match command {
+            Command::Create { name } => {
+                self.name.clone_from(&name);
+                vec![Event::Created { name }]
             }
-        }
+            Command::AddItems { items } => {
+                self.items.extend_from_slice(&items);
+                vec![Event::ItemsAdded { items }]
+            }
+            Command::RemoveItems { item_ids } => {
+                self.items.retain(|x| !item_ids.contains(x.id()));
+                vec![Event::ItemsRemoved { item_ids }]
+            }
+        };
+
         self.version = self
             .version
             .checked_add(1)
