@@ -1,0 +1,73 @@
+syntax = "proto3";
+
+package tenant.v1;
+
+message CreateRequest {
+  string name = 1;
+}
+
+message CreateResponse {
+  string id = 1;
+}
+
+message ListTenantsRequest {}
+
+message ListTenantsResponse {
+  message Tenant {
+    string id = 1;
+    string name = 2;
+  }
+
+  repeated Tenant tenants = 1;
+}
+
+message AddItemsRequest {
+  // 商品
+  message Item {
+    // 商品名
+    string name = 1;
+    // 値段
+    uint32 price = 2;
+  }
+
+  string tenant_id = 1;
+  repeated Item items = 2;
+}
+
+message AddItemsResponse {
+  repeated string ids = 1;
+}
+
+message RemoveItemsRequest {
+  string tenant_id = 1;
+  repeated string item_ids = 2;
+}
+
+message RemoveItemsResponse {}
+
+message ListItemsRequest {
+  string tenant_id = 1;
+}
+
+message ListItemsResponse {
+  message Item {
+    string id = 1;
+    string name = 2;
+    uint32 price = 3;
+  }
+
+  repeated Item items = 1;
+}
+
+service TenantService {
+  // テナントを作成する
+  rpc Create(CreateRequest) returns (CreateResponse);
+  // テナントの一覧を取得する
+  rpc ListTenants(ListTenantsRequest) returns (ListTenantsResponse);
+  // 商品を追加する
+  rpc AddItems(AddItemsRequest) returns (AddItemsResponse);
+  // 商品を削除する
+  rpc RemoveItems(RemoveItemsRequest) returns (RemoveItemsResponse);
+  // テナントの商品の一覧を取得する
+  rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+}
