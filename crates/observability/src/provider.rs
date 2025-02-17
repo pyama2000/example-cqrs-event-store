@@ -25,7 +25,7 @@ pub fn init_providers(
     use opentelemetry::KeyValue;
     use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
     use opentelemetry_sdk::Resource;
-    use opentelemetry_semantic_conventions::resource::{SERVICE_NAME, SERVICE_VERSION};
+    use opentelemetry_semantic_conventions::resource::SERVICE_VERSION;
     use opentelemetry_semantic_conventions::SCHEMA_URL;
     use tracing::level_filters::LevelFilter;
     use tracing_opentelemetry::OpenTelemetryLayer;
@@ -33,13 +33,13 @@ pub fn init_providers(
     use tracing_subscriber::util::SubscriberInitExt as _;
     use tracing_subscriber::EnvFilter;
 
-    let resource = Resource::from_schema_url(
-        [
-            KeyValue::new(SERVICE_NAME, service_name),
-            KeyValue::new(SERVICE_VERSION, service_version),
-        ],
-        SCHEMA_URL,
-    );
+    let resource = Resource::builder()
+        .with_service_name(service_name)
+        .with_schema_url(
+            [KeyValue::new(SERVICE_VERSION, service_version)],
+            SCHEMA_URL,
+        )
+        .build();
 
     let tracer = init_tracer(resource.clone())?;
     let meter = init_meter(resource.clone())?;
@@ -88,18 +88,18 @@ static OPENTELEMETRY_COLLECTOR_GRPC_ENDPOINT: std::sync::LazyLock<String> =
 #[cfg(feature = "provider")]
 fn init_tracer(
     resource: opentelemetry_sdk::Resource,
-) -> Result<opentelemetry_sdk::trace::TracerProvider, Error> {
+) -> Result<opentelemetry_sdk::trace::SdkTracerProvider, Error> {
     use opentelemetry_otlp::{SpanExporter, WithExportConfig};
-    use opentelemetry_sdk::trace::{RandomIdGenerator, TracerProvider};
+    use opentelemetry_sdk::trace::{RandomIdGenerator, SdkTracerProvider};
 
     let exporter = SpanExporter::builder()
         .with_tonic()
         .with_endpoint(OPENTELEMETRY_COLLECTOR_GRPC_ENDPOINT.as_str())
         .build()?;
-    let provider = TracerProvider::builder()
+    let provider = SdkTracerProvider::builder()
         .with_id_generator(RandomIdGenerator::default())
         .with_resource(resource)
-        .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+        .with_batch_exporter(exporter)
         .build();
     opentelemetry::global::set_tracer_provider(provider.clone());
     Ok(provider)
@@ -118,7 +118,7 @@ fn init_meter(
         .with_tonic()
         .with_endpoint(OPENTELEMETRY_COLLECTOR_GRPC_ENDPOINT.as_str())
         .build()?;
-    let reader = PeriodicReader::builder(exporter, opentelemetry_sdk::runtime::Tokio).build();
+    let reader = PeriodicReader::builder(exporter).build();
     let provider = SdkMeterProvider::builder()
         .with_resource(resource)
         .with_reader(reader)
@@ -132,17 +132,17 @@ fn init_meter(
 #[cfg(feature = "provider")]
 fn init_logger(
     resource: opentelemetry_sdk::Resource,
-) -> Result<opentelemetry_sdk::logs::LoggerProvider, Error> {
+) -> Result<opentelemetry_sdk::logs::SdkLoggerProvider, Error> {
     use opentelemetry_otlp::{LogExporter, WithExportConfig};
-    use opentelemetry_sdk::logs::LoggerProvider;
+    use opentelemetry_sdk::logs::SdkLoggerProvider;
 
     let exporter = LogExporter::builder()
         .with_tonic()
         .with_endpoint(OPENTELEMETRY_COLLECTOR_GRPC_ENDPOINT.as_str())
         .build()?;
-    let provider = LoggerProvider::builder()
+    let provider = SdkLoggerProvider::builder()
         .with_resource(resource)
-        .with_batch_exporter(exporter, opentelemetry_sdk::runtime::Tokio)
+        .with_batch_exporter(exporter)
         .build();
     Ok(provider)
 }
