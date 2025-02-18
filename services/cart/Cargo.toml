@@ -1,0 +1,18 @@
+[package]
+name = "cart"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+adapter = { version = "0.1.0", path = "internal/adapter" }
+app = { version = "0.1.0", path = "internal/app" }
+driver = { version = "0.1.0", path = "internal/driver" }
+kernel = { version = "0.1.0", path = "internal/kernel" }
+tokio = { version = "1.41.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+
+[workspace]
+members = ["internal/*"]
+resolver = "2"
+
+[workspace.lints.clippy]
+pedantic = "warn"

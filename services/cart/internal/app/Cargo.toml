@@ -1,0 +1,12 @@
+[package]
+name = "app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0.95", default-features = false }
+kernel = { version = "0.1.0", path = "../kernel" }
+thiserror = "1.0.65"
+
+[lints]
+workspace = true

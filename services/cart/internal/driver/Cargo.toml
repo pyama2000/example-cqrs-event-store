@@ -1,0 +1,12 @@
+[package]
+name = "driver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+app = { version = "0.1.0", path = "../app" }
+tokio = { version = "1.41.0", default-features = false, features = ["signal"] }
+tracing = "0.1.40"
+
+[lints]
+workspace = true
