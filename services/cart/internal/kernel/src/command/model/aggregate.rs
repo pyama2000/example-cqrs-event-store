@@ -1,19 +1,21 @@
+use crate::id::Id;
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Aggregate {
-    id: (),
+    id: Id<Aggregate>,
     /// 集約のバージョン
     version: u128,
 }
 
 impl Aggregate {
     #[must_use]
-    pub fn new(id: (), version: u128) -> Self {
+    pub fn new(id: Id<Aggregate>, version: u128) -> Self {
         Self { id, version }
     }
 
     /// 集約のID
     #[must_use]
-    pub fn id(&self) -> &() {
+    pub fn id(&self) -> &Id<Aggregate> {
         &self.id
     }
 
