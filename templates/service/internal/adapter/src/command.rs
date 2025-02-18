@@ -4,5 +4,3 @@ pub(crate) mod model;
 pub mod persistence;
 /// リポジトリ関連のモジュール
 pub mod repository;
-
-pub use repository::CommandRepository;

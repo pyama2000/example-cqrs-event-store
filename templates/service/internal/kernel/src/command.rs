@@ -9,9 +9,3 @@ pub mod event;
 pub mod model;
 /// リポジトリ操作のインターフェイスを定義するモジュール
 pub mod processor;
-
-pub use command::Command;
-pub use error::CommandKernelError;
-pub use event::{Event, EventPayload};
-pub use model::Aggregate;
-pub use processor::CommandProcessor;

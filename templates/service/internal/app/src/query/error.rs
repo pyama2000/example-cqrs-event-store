@@ -1,4 +1,4 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum CommandUseCaseError {}
+pub enum QueryUseCaseError {}
