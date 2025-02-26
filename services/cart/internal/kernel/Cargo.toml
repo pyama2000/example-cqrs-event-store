@@ -10,3 +10,6 @@ uuid = { version = "1.13.2", features = ["v4"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+pretty_assertions = "1.4.1"
