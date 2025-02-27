@@ -1,4 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-pub enum CommandUseCaseError {}
+pub enum CommandUseCaseError {
+    #[error("Aggregate not found")]
+    AggregateNotFound,
+}
