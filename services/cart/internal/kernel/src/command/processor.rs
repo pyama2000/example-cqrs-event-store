@@ -4,7 +4,7 @@ use crate::id::Id;
 
 use super::error::CommandKernelError;
 use super::event::Event;
-use super::model::aggregate::{Aggregate, ApplyCommand};
+use super::model::aggregate::Aggregate;
 
 pub trait CommandProcessor {
     /// 集約とイベントを作成する
@@ -15,10 +15,10 @@ pub trait CommandProcessor {
     ) -> impl Future<Output = Result<Result<(), CommandKernelError>, anyhow::Error>> + Send;
 
     /// 集約を取得する
-    fn get<T: ApplyCommand>(
+    fn get(
         &self,
         id: Id<Aggregate>,
-    ) -> impl Future<Output = Result<Result<Option<T>, CommandKernelError>, anyhow::Error>> + Send;
+    ) -> impl Future<Output = Result<Result<Option<Aggregate>, CommandKernelError>, anyhow::Error>> + Send;
 
     /// 集約を更新しイベントを追加する
     fn update(

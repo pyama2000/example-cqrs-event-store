@@ -7,29 +7,13 @@ use crate::id::Id;
 
 use super::entity::{Item, Tenant};
 
-pub trait ApplyCommand {
-    /// 集約にコマンドを実行する
-    ///
-    /// 集約にコマンドを実行すると、コマンドに応じて集約の状態を変更し、集約の状態を変更したイベントを返す
-    ///
-    /// # Errors
-    ///
-    /// コマンド実行時にドメインエラーが発生したら [`CommandKernelError`] を成功状態で返し、例外エラーが発生したら [`anyhow::Error`] を返す
-    ///
-    /// [`anyhow::Error`]: https://docs.rs/anyhow/latest/anyhow/struct.Error.html
-    fn apply_command(
-        &mut self,
-        command: Command,
-    ) -> Result<Result<Vec<Event>, CommandKernelError>, anyhow::Error>;
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct Aggregate {
     id: Id<Aggregate>,
     items: HashMap<Id<Tenant>, HashMap<Id<Item>, u32>>,
     is_order_placed: bool,
     /// 集約のバージョン
-    version: u128,
+    version: u64,
 }
 
 impl Aggregate {
@@ -38,7 +22,7 @@ impl Aggregate {
         id: Id<Aggregate>,
         items: HashMap<Id<Tenant>, HashMap<Id<Item>, u32>>,
         is_order_placed: bool,
-        version: u128,
+        version: u64,
     ) -> Self {
         Self {
             id,
@@ -60,15 +44,28 @@ impl Aggregate {
         &self.items
     }
 
+    /// カートが注文済みかを判定するフラグ
+    #[must_use]
+    pub fn is_order_placed(&self) -> bool {
+        self.is_order_placed
+    }
+
     /// 集約のバージョン
     #[must_use]
-    pub fn version(&self) -> u128 {
+    pub fn version(&self) -> u64 {
         self.version
     }
-}
 
-impl ApplyCommand for Aggregate {
-    fn apply_command(
+    /// 集約にコマンドを実行する
+    ///
+    /// 集約にコマンドを実行すると、コマンドに応じて集約の状態を変更し、集約の状態を変更したイベントを返す
+    ///
+    /// # Errors
+    ///
+    /// コマンド実行時にドメインエラーが発生したら [`CommandKernelError`] を成功状態で返し、例外エラーが発生したら [`anyhow::Error`] を返す
+    ///
+    /// [`anyhow::Error`]: https://docs.rs/anyhow/latest/anyhow/struct.Error.html
+    pub fn apply_command(
         &mut self,
         command: Command,
     ) -> Result<Result<Vec<Event>, CommandKernelError>, anyhow::Error> {
@@ -145,7 +142,7 @@ mod tests {
     use crate::command::command::Command;
     use crate::command::error::CommandKernelError;
     use crate::command::event::Event;
-    use crate::command::model::aggregate::{Aggregate, ApplyCommand as _};
+    use crate::command::model::aggregate::Aggregate;
     use crate::command::model::entity::{Item, Tenant};
     use crate::id::Id;
 
@@ -799,7 +796,7 @@ mod tests {
         let tests = [TestCase {
             name: "バージョンが最大値の集約にコマンド実行時はエラーが返る",
             aggregate: Aggregate {
-                version: u128::MAX,
+                version: u64::MAX,
                 ..Default::default()
             },
             command: Command::AddItem {

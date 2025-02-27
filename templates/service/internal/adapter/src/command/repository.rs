@@ -11,10 +11,16 @@ impl kernel::command::processor::CommandProcessor for CommandRepository {
         todo!()
     }
 
-    async fn get<T: kernel::command::model::aggregate::ApplyCommand>(
+    async fn get(
         &self,
         _id: kernel::id::Id<kernel::command::model::aggregate::Aggregate>,
-    ) -> Result<Result<Option<T>, kernel::command::error::CommandKernelError>, anyhow::Error> {
+    ) -> Result<
+        Result<
+            Option<kernel::command::model::aggregate::Aggregate>,
+            kernel::command::error::CommandKernelError,
+        >,
+        anyhow::Error,
+    > {
         todo!()
     }
 

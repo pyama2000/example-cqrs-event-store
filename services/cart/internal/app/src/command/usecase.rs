@@ -1,7 +1,7 @@
 use std::future::Future;
 
 use kernel::command::command::Command;
-use kernel::command::model::aggregate::{Aggregate, ApplyCommand as _};
+use kernel::command::model::aggregate::Aggregate;
 use kernel::command::model::entity::{Item, Tenant};
 use kernel::command::processor::CommandProcessor;
 use kernel::id::Id;
