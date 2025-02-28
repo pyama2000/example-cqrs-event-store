@@ -5,7 +5,6 @@ use proto::cart::v1::{
     AddItemRequest, AddItemResponse, CreateRequest, CreateResponse, GetRequest, GetResponse,
     PlaceOrderRequest, PlaceOrderResponse, RemoveItemRequest, RemoveItemResponse,
 };
-use tokio::signal;
 use tonic::{Code, Request, Response, Status};
 use tonic_types::{ErrorDetails, StatusExt as _};
 
@@ -160,7 +159,7 @@ where
         })?;
         match self.command.place_order(cart_id).await {
             Ok(result) => match result {
-                Ok(()) => return Ok(Response::new(PlaceOrderResponse{})),
+                Ok(()) => return Ok(Response::new(PlaceOrderResponse {})),
                 Err(e) => match e {
                     CommandUseCaseError::AggregateNotFound => {
                         return Err(Status::with_error_details(
@@ -182,8 +181,60 @@ where
     }
 }
 
+pub struct Server<C: CommandUseCaseExt> {
+    service: Service<C>,
+}
+
+impl<C> Server<C>
+where
+    C: CommandUseCaseExt + Send + Sync + 'static,
+{
+    pub fn new(service: Service<C>) -> Self {
+        Self { service }
+    }
+
+    /// サーバーを起動する
+    ///
+    /// # Errors
+    pub async fn run(self, addr: std::net::SocketAddr) -> anyhow::Result<()> {
+        use anyhow::Context as _;
+        use proto::cart::v1::cart_service_server::CartServiceServer;
+        use proto::cart::v1::FILE_DESCRIPTOR_SET;
+        use tower_http::catch_panic::CatchPanicLayer;
+
+        let cart = CartServiceServer::new(self.service);
+        let refrection = tonic_reflection::server::Builder::configure()
+            .register_encoded_file_descriptor_set(FILE_DESCRIPTOR_SET)
+            .build_v1()
+            .with_context(|| "build reflection service")?;
+        let (_, health) = tonic_health::server::health_reporter();
+        tonic::transport::Server::builder()
+            .layer(CatchPanicLayer::custom(
+                |any: Box<dyn std::any::Any + Send>| {
+                    let message = if let Some(s) = any.downcast_ref::<String>() {
+                        s.clone()
+                    } else if let Some(s) = any.downcast_ref::<&str>() {
+                        (*s).to_string()
+                    } else {
+                        "unknown panic occured".to_string()
+                    };
+                    let err = format!("panic: {message}");
+                    Status::unknown(err).into_http()
+                },
+            ))
+            .add_service(cart)
+            .add_service(refrection)
+            .add_service(health)
+            .serve_with_shutdown(addr, shutdown_signal())
+            .await
+            .with_context(|| "execute the server")
+    }
+}
+
 /// サーバーを安全に終了するための仕組み(Graceful shutdown)
-async fn _shutdown_signal() {
+async fn shutdown_signal() {
+    use tokio::signal;
+
     let ctrl_c = async {
         signal::ctrl_c()
             .await
