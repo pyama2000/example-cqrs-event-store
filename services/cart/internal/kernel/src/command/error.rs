@@ -6,6 +6,8 @@ pub enum CommandKernelError {
     AggregateNotCreated,
     #[error("Aggregate already created")]
     AggregateAlreadyCreated,
+    #[error("Cannot update Aggregate version")]
+    AggregateVersionOverflowed,
     #[error("Order already placed")]
     OrderAlreadyPlaced,
     #[error("Item not found")]

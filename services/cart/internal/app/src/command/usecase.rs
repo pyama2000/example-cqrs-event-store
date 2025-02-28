@@ -60,7 +60,7 @@ where
         let mut aggregate = Aggregate::default();
         let id = aggregate.id().clone();
         let event = aggregate
-            .apply_command(Command::Create)??
+            .apply_command(Command::Create)?
             .pop()
             .with_context(|| "event not present")?;
         self.processor.create(aggregate, event).await??;
@@ -76,7 +76,7 @@ where
         let Some(mut aggregate): Option<Aggregate> = self.processor.get(id).await?? else {
             return Ok(Err(CommandUseCaseError::AggregateNotFound));
         };
-        let events = aggregate.apply_command(Command::AddItem { tenant_id, item_id })??;
+        let events = aggregate.apply_command(Command::AddItem { tenant_id, item_id })?;
         self.processor.update(aggregate, events).await??;
         Ok(Ok(()))
     }
@@ -90,7 +90,7 @@ where
         let Some(mut aggregate): Option<Aggregate> = self.processor.get(id).await?? else {
             return Ok(Err(CommandUseCaseError::AggregateNotFound));
         };
-        let events = match aggregate.apply_command(Command::RemoveItem { tenant_id, item_id })? {
+        let events = match aggregate.apply_command(Command::RemoveItem { tenant_id, item_id }) {
             Ok(events) => events,
             Err(e) => match e {
                 kernel::command::error::CommandKernelError::ItemNotFound => return Ok(Ok(())),
@@ -108,7 +108,7 @@ where
         let Some(mut aggregate): Option<Aggregate> = self.processor.get(id).await?? else {
             return Ok(Err(CommandUseCaseError::AggregateNotFound));
         };
-        let events = aggregate.apply_command(Command::PlaceOrder)??;
+        let events = aggregate.apply_command(Command::PlaceOrder)?;
         self.processor.update(aggregate, events).await??;
         Ok(Ok(()))
     }

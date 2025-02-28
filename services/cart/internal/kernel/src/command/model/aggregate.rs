@@ -61,27 +61,18 @@ impl Aggregate {
     /// 集約にコマンドを実行すると、コマンドに応じて集約の状態を変更し、集約の状態を変更したイベントを返す
     ///
     /// # Errors
-    ///
-    /// コマンド実行時にドメインエラーが発生したら [`CommandKernelError`] を成功状態で返し、例外エラーが発生したら [`anyhow::Error`] を返す
-    ///
-    /// [`anyhow::Error`]: https://docs.rs/anyhow/latest/anyhow/struct.Error.html
-    pub fn apply_command(
-        &mut self,
-        command: Command,
-    ) -> Result<Result<Vec<Event>, CommandKernelError>, anyhow::Error> {
-        use anyhow::Context as _;
-
+    pub fn apply_command(&mut self, command: Command) -> Result<Vec<Event>, CommandKernelError> {
         if command != Command::Create && self.version == 0 {
-            return Ok(Err(CommandKernelError::AggregateNotCreated));
+            return Err(CommandKernelError::AggregateNotCreated);
         }
         if self.is_order_placed {
-            return Ok(Err(CommandKernelError::OrderAlreadyPlaced));
+            return Err(CommandKernelError::OrderAlreadyPlaced);
         }
 
         let events: Vec<Event> = match command {
             Command::Create => {
                 if self.version != 0 {
-                    return Ok(Err(CommandKernelError::AggregateAlreadyCreated));
+                    return Err(CommandKernelError::AggregateAlreadyCreated);
                 }
                 vec![Event::Created]
             }
@@ -107,18 +98,18 @@ impl Aggregate {
                             }
                         }
                     } else {
-                        return Ok(Err(CommandKernelError::ItemNotFound));
+                        return Err(CommandKernelError::ItemNotFound);
                     }
                 } else {
-                    return Ok(Err(CommandKernelError::ItemNotFound));
+                    return Err(CommandKernelError::ItemNotFound);
                 }
                 vec![Event::ItemRemoved { tenant_id, item_id }]
             }
             Command::PlaceOrder => {
                 if self.items.is_empty() {
-                    return Ok(Err(CommandKernelError::PlaceOrder {
+                    return Err(CommandKernelError::PlaceOrder {
                         message: "item is empty".to_string(),
-                    }));
+                    });
                 }
                 self.is_order_placed = true;
                 vec![Event::OrderPlaced]
@@ -128,8 +119,8 @@ impl Aggregate {
         self.version = self
             .version
             .checked_add(1)
-            .with_context(|| "Cannot update aggregate version")?;
-        Ok(Ok(events))
+            .ok_or(CommandKernelError::AggregateVersionOverflowed)?;
+        Ok(events)
     }
 }
 
@@ -179,7 +170,7 @@ mod tests {
             expected_events,
         } in tests
         {
-            let actual_events = aggregate.apply_command(Command::Create)??;
+            let actual_events = aggregate.apply_command(Command::Create)?;
             pretty_assertions::assert_eq!(
                 actual_events,
                 expected_events,
@@ -196,7 +187,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_command_create_err() -> Result<()> {
+    fn test_apply_command_create_err() {
         struct TestCase {
             name: &'static str,
             aggregate: Aggregate,
@@ -218,10 +209,9 @@ mod tests {
             expected,
         } in tests
         {
-            let actual = aggregate.apply_command(Command::Create)?;
+            let actual = aggregate.apply_command(Command::Create);
             assert_eq!(actual, Err(expected), "{name}");
         }
-        Ok(())
     }
 
     #[test]
@@ -370,7 +360,7 @@ mod tests {
             expected_events,
         } in tests
         {
-            let actual_events = aggregate.apply_command(command)??;
+            let actual_events = aggregate.apply_command(command)?;
             pretty_assertions::assert_eq!(
                 actual_events,
                 expected_events,
@@ -387,7 +377,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_command_add_item_err() -> Result<()> {
+    fn test_apply_command_add_item_err() {
         struct TestCase {
             name: &'static str,
             aggregate: Aggregate,
@@ -427,11 +417,9 @@ mod tests {
             expected,
         } in tests
         {
-            let actual = aggregate.apply_command(command)?;
+            let actual = aggregate.apply_command(command);
             assert_eq!(actual, Err(expected), "{name}");
         }
-
-        Ok(())
     }
 
     #[test]
@@ -581,7 +569,7 @@ mod tests {
             expected_events,
         } in tests
         {
-            let actual_events = aggregate.apply_command(command)??;
+            let actual_events = aggregate.apply_command(command)?;
             pretty_assertions::assert_eq!(
                 actual_events,
                 expected_events,
@@ -598,7 +586,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_command_remove_item_err() -> Result<()> {
+    fn test_apply_command_remove_item_err() {
         struct TestCase {
             name: &'static str,
             aggregate: Aggregate,
@@ -670,11 +658,9 @@ mod tests {
             expected,
         } in tests
         {
-            let actual = aggregate.apply_command(command)?;
+            let actual = aggregate.apply_command(command);
             assert_eq!(actual, Err(expected), "{name}");
         }
-
-        Ok(())
     }
 
     #[test]
@@ -720,7 +706,7 @@ mod tests {
             expected_events,
         } in tests
         {
-            let actual_events = aggregate.apply_command(Command::PlaceOrder)??;
+            let actual_events = aggregate.apply_command(Command::PlaceOrder)?;
             pretty_assertions::assert_eq!(
                 actual_events,
                 expected_events,
@@ -737,7 +723,7 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_command_place_order_err() -> Result<()> {
+    fn test_apply_command_place_order_err() {
         struct TestCase {
             name: &'static str,
             aggregate: Aggregate,
@@ -777,20 +763,18 @@ mod tests {
             expected,
         } in tests
         {
-            let actual = aggregate.apply_command(Command::PlaceOrder)?;
+            let actual = aggregate.apply_command(Command::PlaceOrder);
             assert_eq!(actual, Err(expected), "{name}");
         }
-
-        Ok(())
     }
 
     #[test]
-    fn test_apply_command_exception() {
+    fn test_apply_command_err() {
         struct TestCase {
             name: &'static str,
             aggregate: Aggregate,
             command: Command,
-            expected: anyhow::Error,
+            expected: CommandKernelError,
         }
 
         let tests = [TestCase {
@@ -803,7 +787,7 @@ mod tests {
                 tenant_id: Id::generate(),
                 item_id: Id::generate(),
             },
-            expected: anyhow::anyhow!("Cannot update aggregate version"),
+            expected: CommandKernelError::AggregateVersionOverflowed,
         }];
 
         for TestCase {
@@ -814,11 +798,7 @@ mod tests {
         } in tests
         {
             let actual = aggregate.apply_command(command);
-            assert_eq!(
-                actual.err().unwrap().to_string(),
-                expected.to_string(),
-                "{name}"
-            );
+            assert_eq!(actual, Err(expected), "{name}");
         }
     }
 }
