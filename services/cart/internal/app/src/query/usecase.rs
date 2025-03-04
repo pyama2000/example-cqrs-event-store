@@ -1,7 +1,23 @@
+use std::future::Future;
+
+use kernel::id::Id;
 use kernel::query::processor::QueryProcessor;
 
+use super::error::QueryUseCaseError;
+
 /// ユースケースのインターフェイス
-pub trait QueryUseCaseExt {}
+pub trait QueryUseCaseExt {
+    /// カートを取得する
+    fn get(
+        &self,
+        id: Id<kernel::query::model::Cart>,
+    ) -> impl Future<
+        Output = Result<
+            Result<Option<kernel::query::model::Cart>, QueryUseCaseError>,
+            anyhow::Error,
+        >,
+    > + Send;
+}
 
 /// ユースケースの実態
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -15,4 +31,14 @@ impl<P: QueryProcessor> QueryUseCase<P> {
     }
 }
 
-impl<P> QueryUseCaseExt for QueryUseCase<P> where P: QueryProcessor + Send + Sync + 'static {}
+impl<P> QueryUseCaseExt for QueryUseCase<P>
+where
+    P: QueryProcessor + Send + Sync + 'static,
+{
+    async fn get(
+        &self,
+        id: Id<kernel::query::model::Cart>,
+    ) -> Result<Result<Option<kernel::query::model::Cart>, QueryUseCaseError>, anyhow::Error> {
+        Ok(Ok(self.processor.get(id).await??))
+    }
+}

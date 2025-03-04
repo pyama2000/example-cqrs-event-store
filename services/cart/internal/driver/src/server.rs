@@ -1,5 +1,6 @@
 use app::command::error::CommandUseCaseError;
 use app::command::usecase::CommandUseCaseExt;
+use app::query::usecase::QueryUseCaseExt;
 use proto::cart::v1::cart_service_server::CartService;
 use proto::cart::v1::{
     AddItemRequest, AddItemResponse, CreateRequest, CreateResponse, GetRequest, GetResponse,
@@ -8,20 +9,26 @@ use proto::cart::v1::{
 use tonic::{Code, Request, Response, Status};
 use tonic_types::{ErrorDetails, StatusExt as _};
 
-pub struct Service<C: CommandUseCaseExt> {
+pub struct Service<C: CommandUseCaseExt, Q: QueryUseCaseExt> {
     command: C,
+    query: Q,
 }
 
-impl<C: CommandUseCaseExt> Service<C> {
-    pub fn new(command: C) -> Self {
-        Self { command }
+impl<C, Q> Service<C, Q>
+where
+    C: CommandUseCaseExt,
+    Q: QueryUseCaseExt,
+{
+    pub fn new(command: C, query: Q) -> Self {
+        Self { command, query }
     }
 }
 
 #[tonic::async_trait]
-impl<C> CartService for Service<C>
+impl<C, Q> CartService for Service<C, Q>
 where
     C: CommandUseCaseExt + Send + Sync + 'static,
+    Q: QueryUseCaseExt + Send + Sync + 'static,
 {
     async fn create(&self, _: Request<CreateRequest>) -> Result<Response<CreateResponse>, Status> {
         match self.command.create().await {
@@ -176,20 +183,56 @@ where
         }
     }
 
-    async fn get(&self, _req: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
-        todo!()
+    async fn get(&self, req: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
+        use proto::cart::v1::get_response::Item;
+
+        let GetRequest { id } = req.into_inner();
+        let cart_id = id.parse().map_err(|e: anyhow::Error| {
+            Status::with_error_details(
+                Code::InvalidArgument,
+                format!("invalid cart id: {id}"),
+                ErrorDetails::new()
+                    .add_bad_request_violation("id", e.to_string())
+                    .to_owned(),
+            )
+        })?;
+        match self.query.get(cart_id).await {
+            Ok(result) => match result {
+                Ok(option) => match option {
+                    Some(cart) => {
+                        let items: Vec<_> = cart
+                            .items()
+                            .iter()
+                            .map(|item| Item {
+                                tenant_id: item.tenant_id().to_string(),
+                                item_id: item.item_id().to_string(),
+                                quantity: item.quantity(),
+                            })
+                            .collect();
+                        return Ok(Response::new(GetResponse {
+                            id: cart.id().to_string(),
+                            items,
+                        }));
+                    }
+                    None => return Err(Status::not_found(format!("cart not found: {id}"))),
+                },
+                Err(e) => return Err(Status::unknown(e.to_string())),
+            },
+            Err(e) => return Err(Status::unknown(e.to_string())),
+        }
     }
 }
 
-pub struct Server<C: CommandUseCaseExt> {
-    service: Service<C>,
+pub struct Server<C: CommandUseCaseExt, Q: QueryUseCaseExt> {
+    service: Service<C, Q>,
 }
 
-impl<C> Server<C>
+impl<C, Q> Server<C, Q>
 where
     C: CommandUseCaseExt + Send + Sync + 'static,
+    Q: QueryUseCaseExt + Send + Sync + 'static,
 {
-    pub fn new(service: Service<C>) -> Self {
+    pub fn new(service: Service<C, Q>) -> Self {
         Self { service }
     }
 

@@ -14,8 +14,16 @@ pub(crate) struct AggregateModel {
 }
 
 impl AggregateModel {
+    pub(crate) fn id(&self) -> &str {
+        &self.id
+    }
+
     pub(crate) fn version(&self) -> u64 {
         self.version
+    }
+
+    pub(crate) fn payload(&self) -> &AggregatePayload {
+        &self.payload
     }
 
     pub(crate) fn version_attribute_value<T: From<serde_dynamo::AttributeValue>>(
