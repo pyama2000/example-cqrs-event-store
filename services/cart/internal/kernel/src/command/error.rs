@@ -10,6 +10,8 @@ pub enum CommandKernelError {
     AggregateVersionOverflowed,
     #[error("Order already placed")]
     OrderAlreadyPlaced,
+    #[error("Tenant not found")]
+    TenantNotFound,
     #[error("Item not found")]
     ItemNotFound,
     #[error("PlaceOrder: {message}")]

@@ -101,7 +101,7 @@ impl Aggregate {
                         return Err(CommandKernelError::ItemNotFound);
                     }
                 } else {
-                    return Err(CommandKernelError::ItemNotFound);
+                    return Err(CommandKernelError::TenantNotFound);
                 }
                 vec![Event::ItemRemoved { tenant_id, item_id }]
             }
@@ -605,7 +605,7 @@ mod tests {
                 expected: CommandKernelError::AggregateNotCreated,
             },
             TestCase {
-                name: "テナントIDがないRemoveItem実行時はItemNotFoundが返る",
+                name: "テナントIDがないRemoveItem実行時はTenantNotFoundが返る",
                 aggregate: Aggregate {
                     items: HashMap::from([(Id::generate(), HashMap::from([(Id::generate(), 1)]))]),
                     version: 1,
@@ -615,7 +615,7 @@ mod tests {
                     tenant_id: Id::generate(),
                     item_id: Id::generate(),
                 },
-                expected: CommandKernelError::ItemNotFound,
+                expected: CommandKernelError::TenantNotFound,
             },
             {
                 let tenant_id: Id<Tenant> = Id::generate();

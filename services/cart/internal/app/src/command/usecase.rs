@@ -93,7 +93,8 @@ where
         let events = match aggregate.apply_command(Command::RemoveItem { tenant_id, item_id }) {
             Ok(events) => events,
             Err(e) => match e {
-                kernel::command::error::CommandKernelError::ItemNotFound => return Ok(Ok(())),
+                kernel::command::error::CommandKernelError::TenantNotFound
+                | kernel::command::error::CommandKernelError::ItemNotFound => return Ok(Ok(())),
                 _ => return Err(e.into()),
             },
         };
