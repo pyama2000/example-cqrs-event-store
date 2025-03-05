@@ -3,23 +3,55 @@ use crate::command::error::CommandKernelError;
 use crate::command::event::Event;
 use crate::id::Id;
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
+use super::entity::{Cart, Item, OrderStatus};
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Aggregate {
     id: Id<Aggregate>,
+    cart_id: Id<Cart>,
+    items: Vec<Item>,
+    status: OrderStatus,
     /// 集約のバージョン
     version: u64,
 }
 
 impl Aggregate {
     #[must_use]
-    pub fn new(id: Id<Aggregate>, version: u64) -> Self {
-        Self { id, version }
+    pub fn new(
+        id: Id<Aggregate>,
+        cart_id: Id<Cart>,
+        items: Vec<Item>,
+        status: OrderStatus,
+        version: u64,
+    ) -> Self {
+        Self {
+            id,
+            cart_id,
+            items,
+            status,
+            version,
+        }
     }
 
     /// 集約のID
     #[must_use]
     pub fn id(&self) -> &Id<Aggregate> {
         &self.id
+    }
+
+    #[must_use]
+    pub fn cart_id(&self) -> Id<Cart> {
+        self.cart_id
+    }
+
+    #[must_use]
+    pub fn items(&self) -> &[Item] {
+        &self.items
+    }
+
+    #[must_use]
+    pub fn status(&self) -> OrderStatus {
+        self.status
     }
 
     /// 集約のバージョン
