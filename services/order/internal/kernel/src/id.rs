@@ -5,7 +5,7 @@ use std::str::FromStr;
 use uuid::Uuid;
 
 /// Generic UUID
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Id<T> {
     value: Uuid,
     _maker: PhantomData<T>,
