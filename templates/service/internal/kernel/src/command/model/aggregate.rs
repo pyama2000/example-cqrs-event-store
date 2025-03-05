@@ -38,9 +38,7 @@ impl Aggregate {
     ///
     /// [`anyhow::Error`]: https://docs.rs/anyhow/latest/anyhow/struct.Error.html
     pub fn apply_command(
-        &mut self,
-        _command: Command,
-    ) -> Result<Result<Vec<Event>, CommandKernelError>, anyhow::Error> {
+        &mut self, _command: Command) -> Result<Vec<Event>, CommandKernelError> {
         todo!()
     }
 }

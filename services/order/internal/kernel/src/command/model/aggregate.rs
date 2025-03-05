@@ -69,10 +69,7 @@ impl Aggregate {
     /// コマンド実行時にドメインエラーが発生したら [`CommandKernelError`] を成功状態で返し、例外エラーが発生したら [`anyhow::Error`] を返す
     ///
     /// [`anyhow::Error`]: https://docs.rs/anyhow/latest/anyhow/struct.Error.html
-    pub fn apply_command(
-        &mut self,
-        _command: Command,
-    ) -> Result<Result<Vec<Event>, CommandKernelError>, anyhow::Error> {
+    pub fn apply_command(&mut self, _command: Command) -> Result<Vec<Event>, CommandKernelError> {
         todo!()
     }
 }
