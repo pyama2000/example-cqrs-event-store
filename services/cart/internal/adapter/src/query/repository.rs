@@ -13,6 +13,7 @@ impl QueryRepository {
 }
 
 impl kernel::query::processor::QueryProcessor for QueryRepository {
+    #[tracing::instrument(skip(self), err, ret)]
     async fn get(
         &self,
         id: kernel::id::Id<kernel::query::model::Cart>,

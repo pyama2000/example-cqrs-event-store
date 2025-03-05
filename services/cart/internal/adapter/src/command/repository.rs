@@ -20,6 +20,7 @@ impl CommandRepository {
 }
 
 impl kernel::command::processor::CommandProcessor for CommandRepository {
+    #[tracing::instrument(skip(self), err, ret)]
     async fn create(
         &self,
         aggregate: kernel::command::model::aggregate::Aggregate,
@@ -72,6 +73,7 @@ impl kernel::command::processor::CommandProcessor for CommandRepository {
         Ok(Ok(()))
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn get(
         &self,
         id: kernel::id::Id<kernel::command::model::aggregate::Aggregate>,
@@ -106,6 +108,7 @@ impl kernel::command::processor::CommandProcessor for CommandRepository {
         Ok(Ok(Some(aggregate.try_into()?)))
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn update(
         &self,
         aggregate: kernel::command::model::aggregate::Aggregate,

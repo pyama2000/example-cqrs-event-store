@@ -1,5 +1,8 @@
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>> {
+    let shutdown_providers =
+        observability::provider::init_providers(env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"))?;
+
     let addr = format!(
         "[::1]:{}",
         std::env::var("PORT").map_err(|e| format!("PORT must be set: {e:?}"))?
@@ -21,6 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             dynamodb,
         )),
     ));
+    tracing::info!("listing on: {addr}");
     server.run(addr.parse()?).await?;
+    shutdown_providers()?;
     Ok(())
 }

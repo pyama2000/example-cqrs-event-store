@@ -61,6 +61,7 @@ impl Aggregate {
     /// 集約にコマンドを実行すると、コマンドに応じて集約の状態を変更し、集約の状態を変更したイベントを返す
     ///
     /// # Errors
+    #[tracing::instrument(skip(self), err, ret)]
     pub fn apply_command(&mut self, command: Command) -> Result<Vec<Event>, CommandKernelError> {
         if command != Command::Create && self.version == 0 {
             return Err(CommandKernelError::AggregateNotCreated);

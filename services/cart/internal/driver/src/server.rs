@@ -30,6 +30,7 @@ where
     C: CommandUseCaseExt + Send + Sync + 'static,
     Q: QueryUseCaseExt + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip(self), err, ret)]
     async fn create(&self, _: Request<CreateRequest>) -> Result<Response<CreateResponse>, Status> {
         match self.command.create().await {
             Ok(result) => match result {
@@ -40,6 +41,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn add_item(
         &self,
         req: Request<AddItemRequest>,
@@ -95,6 +97,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn remove_item(
         &self,
         req: Request<RemoveItemRequest>,
@@ -150,6 +153,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn place_order(
         &self,
         req: Request<PlaceOrderRequest>,
@@ -183,6 +187,7 @@ where
         }
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn get(&self, req: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
         use proto::cart::v1::get_response::Item;
 
@@ -265,32 +270,12 @@ where
                     Status::unknown(err).into_http()
                 },
             ))
+            .layer(observability::server::grpc_trace_layer())
             .add_service(cart)
             .add_service(refrection)
             .add_service(health)
-            .serve_with_shutdown(addr, shutdown_signal())
+            .serve_with_shutdown(addr, observability::server::shutdown())
             .await
             .with_context(|| "execute the server")
-    }
-}
-
-/// サーバーを安全に終了するための仕組み(Graceful shutdown)
-async fn shutdown_signal() {
-    use tokio::signal;
-
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .unwrap_or_else(|e| panic!("failed to install Ctrl+C handler: {e}"));
-    };
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .unwrap_or_else(|e| panic!("failed to install signal handler: {e}"))
-            .recv()
-            .await;
-    };
-    tokio::select! {
-        () = ctrl_c => tracing::trace!("receive ctrl_c signal"),
-        () = terminate => tracing::trace!("receive terminate"),
     }
 }

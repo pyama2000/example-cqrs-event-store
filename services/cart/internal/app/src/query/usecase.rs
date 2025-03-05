@@ -35,6 +35,7 @@ impl<P> QueryUseCaseExt for QueryUseCase<P>
 where
     P: QueryProcessor + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip(self), err, ret)]
     async fn get(
         &self,
         id: Id<kernel::query::model::Cart>,

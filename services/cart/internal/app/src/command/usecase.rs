@@ -54,6 +54,7 @@ impl<P> CommandUseCaseExt for CommandUseCase<P>
 where
     P: CommandProcessor + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip(self), err, ret)]
     async fn create(&self) -> Result<Result<Id<Aggregate>, CommandUseCaseError>, anyhow::Error> {
         use anyhow::Context as _;
 
@@ -67,6 +68,7 @@ where
         Ok(Ok(id))
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn add_item(
         &self,
         id: Id<Aggregate>,
@@ -81,6 +83,7 @@ where
         Ok(Ok(()))
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn remove_item(
         &self,
         id: Id<Aggregate>,
@@ -102,6 +105,7 @@ where
         Ok(Ok(()))
     }
 
+    #[tracing::instrument(skip(self), err, ret)]
     async fn place_order(
         &self,
         id: Id<Aggregate>,
