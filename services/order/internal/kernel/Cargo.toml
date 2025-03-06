@@ -8,5 +8,8 @@ anyhow = { version = "1.0.95", default-features = false }
 thiserror = "1.0.65"
 uuid = { version = "1.13.2", features = ["v4"] }
 
+[dev-dependencies]
+pretty_assertions = "1.4.1"
+
 [lints]
 workspace = true
