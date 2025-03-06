@@ -1,5 +1,6 @@
 use thiserror::Error;
 
+use super::event::Event;
 use super::model::entity::OrderStatus;
 
 #[derive(Debug, Error, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -14,4 +15,6 @@ pub enum CommandKernelError {
     ItemsIsEmpty,
     #[error("Invalid operation: current_status =  {current_status:?}")]
     InvalidOperation { current_status: OrderStatus },
+    #[error("Invalid events: {events:?}")]
+    InvalidEvents { events: Vec<Event> },
 }
