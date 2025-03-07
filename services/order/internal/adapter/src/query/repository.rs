@@ -13,6 +13,7 @@ impl QueryRepository {
     }
 
     /// 集約テーブルから全てのレコードを取得する
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_aggregate_models(&self) -> Result<Vec<AggregateModel>, anyhow::Error> {
         use anyhow::Context as _;
 
@@ -29,6 +30,7 @@ impl QueryRepository {
 }
 
 impl kernel::query::processor::QueryProcessor for QueryRepository {
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn get_by_order_id(
         &self,
         id: kernel::id::Id<kernel::query::model::Order>,
@@ -65,6 +67,7 @@ impl kernel::query::processor::QueryProcessor for QueryRepository {
         )))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn get_by_cart_id(
         &self,
         id: kernel::id::Id<kernel::query::model::Cart>,
@@ -92,6 +95,7 @@ impl kernel::query::processor::QueryProcessor for QueryRepository {
         )))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_tenant_received_order_ids(
         &self,
         tenant_id: kernel::id::Id<kernel::query::model::Tenant>,
@@ -139,6 +143,7 @@ impl kernel::query::processor::QueryProcessor for QueryRepository {
         Ok(Ok(order_ids))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_prepared_order_ids(
         &self,
     ) -> Result<

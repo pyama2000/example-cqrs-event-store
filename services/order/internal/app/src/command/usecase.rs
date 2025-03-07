@@ -58,6 +58,7 @@ impl<P> CommandUseCaseExt for CommandUseCase<P>
 where
     P: kernel::command::processor::CommandProcessor + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn create(
         &self,
         cart_id: Id<Cart>,
@@ -78,6 +79,7 @@ where
         Ok(Ok(id))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn prepared(
         &self,
         id: Id<Aggregate>,
@@ -90,6 +92,7 @@ where
         Ok(Ok(()))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn picked_up(
         &self,
         id: Id<Aggregate>,
@@ -102,6 +105,7 @@ where
         Ok(Ok(()))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn delivered(
         &self,
         id: Id<Aggregate>,
@@ -114,6 +118,7 @@ where
         Ok(Ok(()))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn cancel(
         &self,
         id: Id<Aggregate>,

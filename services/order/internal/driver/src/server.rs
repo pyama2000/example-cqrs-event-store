@@ -27,6 +27,7 @@ where
     C: CommandUseCaseExt + Send + Sync + 'static,
     Q: QueryUseCaseExt + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn create(
         &self,
         req: Request<CreateRequest>,
@@ -37,7 +38,7 @@ where
                 Code::InvalidArgument,
                 format!("invalid cart id: {cart_id}"),
                 ErrorDetails::new()
-                    .add_bad_request_violation("cart_id", e.to_string())
+                    .add_bad_request_violation("cart_id", format!("{e:#}"))
                     .to_owned(),
             )
         })?;
@@ -54,7 +55,7 @@ where
                         Code::InvalidArgument,
                         format!("invalid tenant id: {tenant_id}"),
                         ErrorDetails::new()
-                            .add_bad_request_violation("tenant_id", e.to_string())
+                            .add_bad_request_violation("tenant_id", format!("{e:#}"))
                             .to_owned(),
                     )
                 })?;
@@ -63,7 +64,7 @@ where
                         Code::InvalidArgument,
                         format!("invalid item id: {item_id}"),
                         ErrorDetails::new()
-                            .add_bad_request_violation("item_id", e.to_string())
+                            .add_bad_request_violation("item_id", format!("{e:#}"))
                             .to_owned(),
                     )
                 })?;
@@ -75,12 +76,13 @@ where
         match self.command.create(cart_id, items).await {
             Ok(result) => match result {
                 Ok(id) => return Ok(Response::new(CreateResponse { id: id.to_string() })),
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn prepared(
         &self,
         req: Request<PreparedRequest>,
@@ -91,19 +93,20 @@ where
                 Code::InvalidArgument,
                 format!("invalid order id: {id}"),
                 ErrorDetails::new()
-                    .add_bad_request_violation("id", e.to_string())
+                    .add_bad_request_violation("id", format!("{e:#}"))
                     .to_owned(),
             )
         })?;
         match self.command.prepared(id).await {
             Ok(result) => match result {
                 Ok(()) => return Ok(Response::new(PreparedResponse {})),
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn picked_up(
         &self,
         req: Request<PickedUpRequest>,
@@ -114,19 +117,20 @@ where
                 Code::InvalidArgument,
                 format!("invalid order id: {id}"),
                 ErrorDetails::new()
-                    .add_bad_request_violation("id", e.to_string())
+                    .add_bad_request_violation("id", format!("{e:#}"))
                     .to_owned(),
             )
         })?;
         match self.command.picked_up(id).await {
             Ok(result) => match result {
                 Ok(()) => return Ok(Response::new(PickedUpResponse {})),
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn delivered(
         &self,
         req: Request<DeliveredRequest>,
@@ -137,19 +141,20 @@ where
                 Code::InvalidArgument,
                 format!("invalid order id: {id}"),
                 ErrorDetails::new()
-                    .add_bad_request_violation("id", e.to_string())
+                    .add_bad_request_violation("id", format!("{e:#}"))
                     .to_owned(),
             )
         })?;
         match self.command.delivered(id).await {
             Ok(result) => match result {
                 Ok(()) => return Ok(Response::new(DeliveredResponse {})),
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn cancel(
         &self,
         req: Request<CancelRequest>,
@@ -160,19 +165,20 @@ where
                 Code::InvalidArgument,
                 format!("invalid order id: {id}"),
                 ErrorDetails::new()
-                    .add_bad_request_violation("id", e.to_string())
+                    .add_bad_request_violation("id", format!("{e:#}"))
                     .to_owned(),
             )
         })?;
         match self.command.cancel(id).await {
             Ok(result) => match result {
                 Ok(()) => return Ok(Response::new(CancelResponse {})),
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn get(&self, req: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
         use proto::order::v1::get_response::OrderStatus;
         use proto::order::v1::Item;
@@ -188,7 +194,7 @@ where
                         Code::InvalidArgument,
                         format!("invalid order id: {id}"),
                         ErrorDetails::new()
-                            .add_bad_request_violation("order_id", e.to_string())
+                            .add_bad_request_violation("order_id", format!("{e:#}"))
                             .to_owned(),
                     )
                 })?;
@@ -198,9 +204,9 @@ where
                             Some(order) => order,
                             None => return Err(Status::not_found("order not found")),
                         },
-                        Err(e) => return Err(Status::unknown(e.to_string())),
+                        Err(e) => return Err(Status::unknown(format!("{e:#}"))),
                     },
-                    Err(e) => return Err(Status::unknown(e.to_string())),
+                    Err(e) => return Err(Status::unknown(format!("{e:#}"))),
                 }
             }
             proto::order::v1::get_request::Id::CartId(id) => {
@@ -209,7 +215,7 @@ where
                         Code::InvalidArgument,
                         format!("invalid cart id: {id}"),
                         ErrorDetails::new()
-                            .add_bad_request_violation("cart_id", e.to_string())
+                            .add_bad_request_violation("cart_id", format!("{e:#}"))
                             .to_owned(),
                     )
                 })?;
@@ -219,9 +225,9 @@ where
                             Some(order) => order,
                             None => return Err(Status::not_found("order not found")),
                         },
-                        Err(e) => return Err(Status::unknown(e.to_string())),
+                        Err(e) => return Err(Status::unknown(format!("{e:#}"))),
                     },
-                    Err(e) => return Err(Status::unknown(e.to_string())),
+                    Err(e) => return Err(Status::unknown(format!("{e:#}"))),
                 }
             }
         };
@@ -249,6 +255,7 @@ where
         }));
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_tenant_received_orders(
         &self,
         req: Request<ListTenantReceivedOrdersRequest>,
@@ -259,7 +266,7 @@ where
                 Code::InvalidArgument,
                 format!("invalid tenant id: {tenant_id}"),
                 ErrorDetails::new()
-                    .add_bad_request_violation("tenant_id", e.to_string())
+                    .add_bad_request_violation("tenant_id", format!("{e:#}"))
                     .to_owned(),
             )
         })?;
@@ -270,12 +277,13 @@ where
                         ids: ids.into_iter().map(|id| id.to_string()).collect(),
                     }))
                 }
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_prepared_orders(
         &self,
         _: Request<ListPreparedOrdersRequest>,
@@ -287,9 +295,9 @@ where
                         ids: ids.into_iter().map(|id| id.to_string()).collect(),
                     }))
                 }
-                Err(e) => return Err(Status::unknown(e.to_string())),
+                Err(e) => return Err(Status::unknown(format!("{e:#}"))),
             },
-            Err(e) => return Err(Status::unknown(e.to_string())),
+            Err(e) => return Err(Status::unknown(format!("{e:#}"))),
         }
     }
 }
@@ -308,6 +316,7 @@ where
     }
 
     /// # Errors
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     pub async fn run(self, addr: std::net::SocketAddr) -> anyhow::Result<()> {
         use anyhow::Context as _;
         use proto::order::v1::order_service_server::OrderServiceServer;
@@ -334,32 +343,12 @@ where
                     Status::unknown(err).into_http()
                 },
             ))
+            .layer(observability::server::grpc_trace_layer())
             .add_service(order)
             .add_service(refrection)
             .add_service(health)
-            .serve_with_shutdown(addr, shutdown_signal())
+            .serve_with_shutdown(addr, observability::server::shutdown())
             .await
             .with_context(|| "execute the server")
-    }
-}
-
-/// サーバーを安全に終了するための仕組み(Graceful shutdown)
-async fn shutdown_signal() {
-    use tokio::signal;
-
-    let ctrl_c = async {
-        signal::ctrl_c()
-            .await
-            .unwrap_or_else(|e| panic!("failed to install Ctrl+C handler: {e}"));
-    };
-    let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .unwrap_or_else(|e| panic!("failed to install signal handler: {e}"))
-            .recv()
-            .await;
-    };
-    tokio::select! {
-        () = ctrl_c => tracing::trace!("receive ctrl_c signal"),
-        () = terminate => tracing::trace!("receive terminate"),
     }
 }

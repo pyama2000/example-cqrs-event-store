@@ -9,7 +9,9 @@ app = { version = "0.1.0", path = "internal/app" }
 aws-config = "1.5.18"
 driver = { version = "0.1.0", path = "internal/driver" }
 kernel = { version = "0.1.0", path = "internal/kernel" }
+observability = { version = "0.1.0", path = "../../crates/observability", features = ["provider"] }
 tokio = { version = "1.41.0", default-features = false, features = ["macros", "rt-multi-thread"] }
+tracing = "0.1.41"
 
 [lints.clippy]
 pedantic = "warn"

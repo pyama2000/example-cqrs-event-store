@@ -48,6 +48,7 @@ impl<P> QueryUseCaseExt for QueryUseCase<P>
 where
     P: QueryProcessor + Send + Sync + 'static,
 {
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn get_by_order_id(
         &self,
         id: Id<Order>,
@@ -55,6 +56,7 @@ where
         Ok(Ok(self.processor.get_by_order_id(id).await??))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn get_by_cart_id(
         &self,
         id: Id<Cart>,
@@ -62,6 +64,7 @@ where
         Ok(Ok(self.processor.get_by_cart_id(id).await??))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_tenant_received_order_ids(
         &self,
         tenant_id: Id<Tenant>,
@@ -72,6 +75,7 @@ where
             .await??))
     }
 
+    #[tracing::instrument(skip(self), err(Debug), ret)]
     async fn list_prepared_order_ids(
         &self,
     ) -> Result<Result<Vec<Id<Order>>, QueryUseCaseError>, anyhow::Error> {
