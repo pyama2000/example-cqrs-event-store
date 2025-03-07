@@ -1,4 +1,5 @@
 use app::command::usecase::CommandUseCaseExt;
+use app::query::usecase::QueryUseCaseExt;
 use proto::order::v1::order_service_server::OrderService;
 use proto::order::v1::{
     CancelRequest, CancelResponse, CreateRequest, CreateResponse, DeliveredRequest,
@@ -9,20 +10,22 @@ use proto::order::v1::{
 use tonic::{Code, Request, Response, Status};
 use tonic_types::{ErrorDetails, StatusExt as _};
 
-pub struct Service<C: CommandUseCaseExt> {
+pub struct Service<C: CommandUseCaseExt, Q: QueryUseCaseExt> {
     command: C,
+    query: Q,
 }
 
-impl<C: CommandUseCaseExt> Service<C> {
-    pub fn new(command: C) -> Self {
-        Self { command }
+impl<C: CommandUseCaseExt, Q: QueryUseCaseExt> Service<C, Q> {
+    pub fn new(command: C, query: Q) -> Self {
+        Self { command, query }
     }
 }
 
 #[tonic::async_trait]
-impl<C> OrderService for Service<C>
+impl<C, Q> OrderService for Service<C, Q>
 where
     C: CommandUseCaseExt + Send + Sync + 'static,
+    Q: QueryUseCaseExt + Send + Sync + 'static,
 {
     async fn create(
         &self,
@@ -170,34 +173,137 @@ where
         }
     }
 
-    async fn get(&self, _: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
-        todo!()
+    async fn get(&self, req: Request<GetRequest>) -> Result<Response<GetResponse>, Status> {
+        use proto::order::v1::get_response::OrderStatus;
+        use proto::order::v1::Item;
+
+        let GetRequest { id } = req.into_inner();
+        let Some(id) = id else {
+            return Err(Status::invalid_argument("id must be set"));
+        };
+        let order = match id {
+            proto::order::v1::get_request::Id::OrderId(id) => {
+                let id = id.parse().map_err(|e: anyhow::Error| {
+                    Status::with_error_details(
+                        Code::InvalidArgument,
+                        format!("invalid order id: {id}"),
+                        ErrorDetails::new()
+                            .add_bad_request_violation("order_id", e.to_string())
+                            .to_owned(),
+                    )
+                })?;
+                match self.query.get_by_order_id(id).await {
+                    Ok(result) => match result {
+                        Ok(option) => match option {
+                            Some(order) => order,
+                            None => return Err(Status::not_found("order not found")),
+                        },
+                        Err(e) => return Err(Status::unknown(e.to_string())),
+                    },
+                    Err(e) => return Err(Status::unknown(e.to_string())),
+                }
+            }
+            proto::order::v1::get_request::Id::CartId(id) => {
+                let id = id.parse().map_err(|e: anyhow::Error| {
+                    Status::with_error_details(
+                        Code::InvalidArgument,
+                        format!("invalid cart id: {id}"),
+                        ErrorDetails::new()
+                            .add_bad_request_violation("cart_id", e.to_string())
+                            .to_owned(),
+                    )
+                })?;
+                match self.query.get_by_cart_id(id).await {
+                    Ok(result) => match result {
+                        Ok(option) => match option {
+                            Some(order) => order,
+                            None => return Err(Status::not_found("order not found")),
+                        },
+                        Err(e) => return Err(Status::unknown(e.to_string())),
+                    },
+                    Err(e) => return Err(Status::unknown(e.to_string())),
+                }
+            }
+        };
+        let items: Vec<_> = order
+            .items()
+            .iter()
+            .map(|item| Item {
+                tenant_id: item.tenant_id().to_string(),
+                item_id: item.id().to_string(),
+                quantity: item.quantity(),
+            })
+            .collect();
+        let status = match order.status() {
+            app::query::model::OrderStatus::Received => OrderStatus::Received,
+            app::query::model::OrderStatus::Prepared => OrderStatus::Prepared,
+            app::query::model::OrderStatus::OnTheWay => OrderStatus::OnTheWay,
+            app::query::model::OrderStatus::Delivered => OrderStatus::Delivered,
+            app::query::model::OrderStatus::Canceled => OrderStatus::Cancelled,
+        }
+        .into();
+        return Ok(Response::new(GetResponse {
+            id: order.id().to_string(),
+            items,
+            status,
+        }));
     }
 
     async fn list_tenant_received_orders(
         &self,
-        _: Request<ListTenantReceivedOrdersRequest>,
+        req: Request<ListTenantReceivedOrdersRequest>,
     ) -> Result<Response<ListTenantReceivedOrdersResponse>, Status> {
-        todo!()
+        let ListTenantReceivedOrdersRequest { tenant_id } = req.into_inner();
+        let tenant_id = tenant_id.parse().map_err(|e: anyhow::Error| {
+            Status::with_error_details(
+                Code::InvalidArgument,
+                format!("invalid tenant id: {tenant_id}"),
+                ErrorDetails::new()
+                    .add_bad_request_violation("tenant_id", e.to_string())
+                    .to_owned(),
+            )
+        })?;
+        match self.query.list_tenant_received_order_ids(tenant_id).await {
+            Ok(result) => match result {
+                Ok(ids) => {
+                    return Ok(Response::new(ListTenantReceivedOrdersResponse {
+                        ids: ids.into_iter().map(|id| id.to_string()).collect(),
+                    }))
+                }
+                Err(e) => return Err(Status::unknown(e.to_string())),
+            },
+            Err(e) => return Err(Status::unknown(e.to_string())),
+        }
     }
 
     async fn list_prepared_orders(
         &self,
         _: Request<ListPreparedOrdersRequest>,
     ) -> Result<Response<ListPreparedOrdersResponse>, Status> {
-        todo!()
+        match self.query.list_prepared_order_ids().await {
+            Ok(result) => match result {
+                Ok(ids) => {
+                    return Ok(Response::new(ListPreparedOrdersResponse {
+                        ids: ids.into_iter().map(|id| id.to_string()).collect(),
+                    }))
+                }
+                Err(e) => return Err(Status::unknown(e.to_string())),
+            },
+            Err(e) => return Err(Status::unknown(e.to_string())),
+        }
     }
 }
 
-pub struct Server<C: CommandUseCaseExt> {
-    service: Service<C>,
+pub struct Server<C: CommandUseCaseExt, Q: QueryUseCaseExt> {
+    service: Service<C, Q>,
 }
 
-impl<C: CommandUseCaseExt> Server<C>
+impl<C, Q> Server<C, Q>
 where
     C: CommandUseCaseExt + Send + Sync + 'static,
+    Q: QueryUseCaseExt + Send + Sync + 'static,
 {
-    pub fn new(service: Service<C>) -> Self {
+    pub fn new(service: Service<C, Q>) -> Self {
         Self { service }
     }
 
