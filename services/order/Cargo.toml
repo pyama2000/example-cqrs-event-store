@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 adapter = { version = "0.1.0", path = "internal/adapter" }
 app = { version = "0.1.0", path = "internal/app" }
+aws-config = "1.5.18"
 driver = { version = "0.1.0", path = "internal/driver" }
 kernel = { version = "0.1.0", path = "internal/kernel" }
 tokio = { version = "1.41.0", default-features = false, features = ["macros", "rt-multi-thread"] }
