@@ -1,0 +1,58 @@
+include:
+  - ./services/tenant/compose.yaml
+  - ./services/cart/compose.yaml
+  - ./services/order/compose.yaml
+services:
+  opentelemetry-collector-gateway:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/gateway.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: opentelemetry-collector-gateway
+    command: ["--config=/etc/config.yaml"]
+  localstack:
+    image: localstack/localstack@sha256:722a22bc441ffcaffa434c1720b04f8bfec60cc24b419ebdc4343cc43908de7f
+    ports:
+      - "${LOCALSTACK_GATEWAY_PORT:-4566}:4566"
+      - "${LOCALSTACK_EXTERNAL_SERVICE_PORT_RANGE:-4510-4559}:4510-4559"
+    volumes:
+      - "${DOCKER_HOST_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+  tenant-service:
+    image: tenant-service:latest
+    pull_policy: never
+    ports:
+      - "${TENANT_SERVICE_PORT:-50051}:50051"
+    environment:
+      LOCALSTACK_GATEWAY_HOST: localstack
+      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector
+    depends_on:
+      tenant-opentelemetry-collector:
+        condition: service_started
+      localstack:
+        condition: service_started
+  cart-service:
+    image: cart-service:latest
+    pull_policy: never
+    ports:
+      - "${CART_SERVICE_PORT:-50052}:50051"
+    environment:
+      LOCALSTACK_GATEWAY_HOST: localstack
+      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector
+    depends_on:
+      cart-opentelemetry-collector:
+        condition: service_started
+      localstack:
+        condition: service_started
+  order-service:
+    image: order-service:latest
+    pull_policy: never
+    ports:
+      - "${ORDER_SERVICE_PORT:-50053}:50051"
+    environment:
+      LOCALSTACK_GATEWAY_HOST: localstack
+      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector
+    depends_on:
+      order-opentelemetry-collector:
+        condition: service_started
+      localstack:
+        condition: service_started

@@ -1,0 +1,103 @@
+services:
+  # ルートディレクトリのcompose.yamlで定義したGrafanaを利用するのでサービスの定義を削除する
+  tenant-grafana: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したGrafana Tempoを利用するのでサービスの定義を削除する
+  tenant-grafana-tempo: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したGrafana Lokiを利用するのでサービスの定義を削除する
+  tenant-grafana-loki: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したPrometheusを利用するのでサービスの定義を削除する
+  tenant-prometheus: !reset {}
+  tenant-opentelemetry-collector:
+    # ホストから接続する必要がないのでポートの定義を削除する
+    ports: !reset []
+    # サービスのOpenTelemetry CollectorをAgentとして利用するので設定ファイルを置き換える
+    volumes: !override
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに送信するための環境変数を設定する
+    environment: !override
+      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+    # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに依存するように置き換える
+    depends_on: !override
+      opentelemetry-collector-gateway:
+        condition: service_started
+  # ルートディレクトリのcompose.yamlで定義したLocalStackを利用するのでサービスの定義を削除する
+  tenant-localstack: !reset {}
+  tenant-terraform-apply:
+    environment:
+      # ルートディレクトリのcompose.yamlのLocalStackに接続できるように環境変数を置き換える
+      TF_VAR_aws_service_endpoint: "http://localstack:4566"
+    # サービスのLocalStackは起動しないので依存関係を置き換える
+    depends_on: !override
+      localstack:
+        condition: service_started
+      tenant-terraform-init:
+        condition: service_completed_successfully
+  # ルートディレクトリのcompose.yamlで定義したGrafanaを利用するのでサービスの定義を削除する
+  cart-grafana: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したGrafana Tempoを利用するのでサービスの定義を削除する
+  cart-grafana-tempo: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したGrafana Lokiを利用するのでサービスの定義を削除する
+  cart-grafana-loki: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したPrometheusを利用するのでサービスの定義を削除する
+  cart-prometheus: !reset {}
+  cart-opentelemetry-collector:
+    # ホストから接続する必要がないのでポートの定義を削除する
+    ports: !reset []
+    # サービスのOpenTelemetry CollectorをAgentとして利用するので設定ファイルを置き換える
+    volumes: !override
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに送信するための環境変数を設定する
+    environment: !override
+      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+    # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに依存するように置き換える
+    depends_on: !override
+      opentelemetry-collector-gateway:
+        condition: service_started
+  # ルートディレクトリのcompose.yamlで定義したLocalStackを利用するのでサービスの定義を削除する
+  cart-localstack: !reset {}
+  cart-terraform-apply:
+    environment:
+      # ルートディレクトリのcompose.yamlのLocalStackに接続できるように環境変数を置き換える
+      TF_VAR_aws_service_endpoint: "http://localstack:4566"
+    # サービスのLocalStackは起動しないので依存関係を置き換える
+    depends_on: !override
+      localstack:
+        condition: service_started
+      cart-terraform-init:
+        condition: service_completed_successfully
+  # ルートディレクトリのcompose.yamlで定義したGrafanaを利用するのでサービスの定義を削除する
+  order-grafana: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したGrafana Tempoを利用するのでサービスの定義を削除する
+  order-grafana-tempo: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したGrafana Lokiを利用するのでサービスの定義を削除する
+  order-grafana-loki: !reset {}
+  # ルートディレクトリのcompose.yamlで定義したPrometheusを利用するのでサービスの定義を削除する
+  order-prometheus: !reset {}
+  order-opentelemetry-collector:
+    # ホストから接続する必要がないのでポートの定義を削除する
+    ports: !reset []
+    # サービスのOpenTelemetry CollectorをAgentとして利用するので設定ファイルを置き換える
+    volumes: !override
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに送信するための環境変数を設定する
+    environment: !override
+      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+    # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに依存するように置き換える
+    depends_on: !override
+      opentelemetry-collector-gateway:
+        condition: service_started
+  # ルートディレクトリのcompose.yamlで定義したLocalStackを利用するのでサービスの定義を削除する
+  order-localstack: !reset {}
+  order-terraform-apply:
+    environment:
+      # ルートディレクトリのcompose.yamlのLocalStackに接続できるように環境変数を置き換える
+      TF_VAR_aws_service_endpoint: "http://localstack:4566"
+    # サービスのLocalStackは起動しないので依存関係を置き換える
+    depends_on: !override
+      localstack:
+        condition: service_started
+      order-terraform-init:
+        condition: service_completed_successfully
