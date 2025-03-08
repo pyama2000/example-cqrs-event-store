@@ -60,7 +60,9 @@ pub fn init_providers(
         .with(
             EnvFilter::builder()
                 .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
+                .from_env_lossy()
+                .add_directive("aws_config=error".parse()?)
+                .add_directive("aws_smithy_runtime=error".parse()?),
         )
         .init();
 
