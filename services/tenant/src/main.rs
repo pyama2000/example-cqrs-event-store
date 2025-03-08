@@ -18,6 +18,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
             std::env::var("LOCALSTACK_GATEWAY_HOST").unwrap_or("localhost".to_string()),
             std::env::var("LOCALSTACK_GATEWAY_PORT").unwrap_or("4566".to_string()),
         ))
+        .region(
+            aws_config::meta::region::RegionProviderChain::default_provider()
+                .or_else("ap-northeast-1"),
+        )
         .test_credentials()
         .load()
         .await;
