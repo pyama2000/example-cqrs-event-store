@@ -80,8 +80,8 @@ pub fn init_providers(
 #[cfg(feature = "provider")]
 static OPENTELEMETRY_COLLECTOR_GRPC_ENDPOINT: std::sync::LazyLock<String> =
     std::sync::LazyLock::new(|| {
-        let host = option_env!("OPENTELEMETRY_COLLECTOR_HOST").unwrap_or("0.0.0.0");
-        let port = option_env!("OPENTELEMETRY_COLLECTOR_GRPC_PORT").unwrap_or("4317");
+        let host = std::env::var("OPENTELEMETRY_COLLECTOR_HOST").unwrap_or("0.0.0.0".to_string());
+        let port = std::env::var("OPENTELEMETRY_COLLECTOR_GRPC_PORT").unwrap_or("4317".to_string());
         format!("http://{host}:{port}")
     });
 
