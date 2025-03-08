@@ -7,12 +7,12 @@ use crate::id::Id;
 pub struct Aggregate {
     id: Id<Aggregate>,
     /// 集約のバージョン
-    version: u128,
+    version: u64,
 }
 
 impl Aggregate {
     #[must_use]
-    pub fn new(id: Id<Aggregate>, version: u128) -> Self {
+    pub fn new(id: Id<Aggregate>, version: u64) -> Self {
         Self { id, version }
     }
 
@@ -24,7 +24,7 @@ impl Aggregate {
 
     /// 集約のバージョン
     #[must_use]
-    pub fn version(&self) -> u128 {
+    pub fn version(&self) -> u64 {
         self.version
     }
 
@@ -38,9 +38,7 @@ impl Aggregate {
     ///
     /// [`anyhow::Error`]: https://docs.rs/anyhow/latest/anyhow/struct.Error.html
     pub fn apply_command(
-        &mut self,
-        _command: Command,
-    ) -> Result<Result<Vec<Event>, CommandKernelError>, anyhow::Error> {
+        &mut self, _command: Command) -> Result<Vec<Event>, CommandKernelError> {
         todo!()
     }
 }
