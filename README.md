@@ -1,59 +1,59 @@
 # Example of a CQRS event store
 
-このリポジトリは Amazon Web Services ブログの [Amazon DynamoDB を使った CQRS イベントストアの構築](https://aws.amazon.com/jp/blogs/news/build-a-cqrs-event-store-with-amazon-dynamodb/) を参考に Rust でイベントソーシングを試してみたリポジトリです。
+このリポジトリはAmazon Web Servicesブログの [Amazon DynamoDB を使った CQRS イベントストアの構築](https://aws.amazon.com/jp/blogs/news/build-a-cqrs-event-store-with-amazon-dynamodb/) を参考にRustでイベントソーシングを試してみたリポジトリです。
 
-## Example
+## Getting Started
 
-### MySQL の DB を立ち上げてマイグレーションを実行する
+1. RustアプリケーションのDockerイメージをビルドする
+1. Docker Composeでコンテナを起動する
 
-```bash
-docker compose up --wait
-cargo run --bin migrate --features migrate
-```
+### RustアプリケーションのDockerイメージをビルドする
 
-MySQL の設定は環境変数によって変更することができます。
+事前にRustアプリケーション (gRPCサーバー) のDockerイメージをビルドします。
+事前にビルドするのは、Docker Composeでコンテナを起動する時間を短縮するためです。
 
-| 環境変数名 | 説明 | デフォルト値 |
-|:-|:-|:-|
-| MYSQL_USERNAME | MySQL に接続するためのユーザー名 | `root` |
-| MYSQL_PASSWORD | MySQL に接続するためのパスワード | `root` |
-| MYSQL_PORT | ローカルにマッピングする MySQL のポート | `3306` |
-| MYSQL_DATABASE | MySQL のデータベース名 | `widget` |
-
-### サーバーを立ち上げる
+> [!IMPORTANT]
+> Dockerイメージのビルドに多くのリソースを利用するので1つずつビルドすることをおすすめします
 
 ```bash
-cargo run --release
+# 各サービスを1つずつビルドする
+docker buildx bake tenant \
+  && docker buildx bake cart \
+  && docker buildx bake order
+
+# 各サービスを並列でビルドする
+docker buildx bake
 ```
 
-### MySQL クライアントで接続する
+### Docker Composeでコンテナを起動する
 
-```bash
-mysql -h 127.0.0.1 --user ${MYSQL_USERNAME:-root} -p${MYSQL_PASSWORD:-root} --port ${MYSQL_PORT:-3306} --database ${MYSQL_DATABASE:-widget}
-```
+Docker Composeでアプリケーションやデータストア (DynamoDB)、オブザーバビリティ関連のコンテナを起動します。
+定義ファイルはルートディレクトリの `compose.yaml` と各アプリケーション ( `services` ディレクトリ配下) の `compose.yaml` を利用します。
 
-### リクエスト
+> [!NOTE]
+> アプリケーションの `compose.yaml` はルートディレクトリの `compose.override.yaml` で定義を一部書き換えています。
+> 最終的に実行される定義ファイルは `docker compose config` (または `docker compose convert` ) を実行して確認できます。
 
-Widget を作成する:
+起動されるコンテナの説明:
 
-```bash
-curl -s http://localhost:8080/widgets \
-  -H "Content-Type: application/json" \
-  -d '{ "widget_name": "widget name 1", "widget_description": "widget description 1"}'
-```
-
-Widget の名前を変更する:
-
-```bash
-curl -v "http://localhost:8080/widgets/${WIDGET_ID}/name" \
-  -H "Content-Type: application/json" \
-  -d '{ "widget_name": "widget name 2"}'
-```
-
-Widget の説明を変更する:
-
-```bash
-curl -v "http://localhost:8080/widgets/${WIDGET_ID}/description" \
-  -H "Content-Type: application/json" \
-  -d '{ "widget_description": "widget description 2"}'
-```
+* **Grafana**:
+  トレース・ログ・メトリクスを可視化します。
+  `localhost:3000` でコンソールにアクセスできます。(任意のポートに変更したい場合は環境変数 `GRAFANA_PORT` に値を設定してください)
+* **Grafana Tempo**: トレースデータを収集します
+* **Grafana Loki**: ログデータを収集します
+* **Prometheus**: メトリクスデータを収集します
+* **OpenTelemetry Collector Agent**:
+  アプリケーションから送信されたテレメトリーデータを収集し、バックエンド (OpenTelemetry Collector Gateway) に送信します。
+  サービスの定義は各アプリケーション ( `services` ディレクトリ配下) の `compose.yaml` で定義されています。
+* **OpenTelemetry Collector Gateway**: OpenTelemetry Collector Agent からテレメトリーデータを集約してバックエンドに送信します
+* **LocalStack**:
+  ローカルマシン上にAWS環境をエミュレートします。
+  Amazon DynamoDBを利用します。
+  ローカルからLocalStackにリクエストする場合は `localhost:4566` にアクセスしてください。(任意のポートに変更したい場合は環境変数 `LOCALSTACK_GATEWAY_PORT` に値を設定してください)
+* **Terraform**:
+  LocalStackに対してリソースを作成します。
+  サービスの定義は各アプリケーション ( `services` ディレクトリ配下) の `compose.yaml` で定義されています。
+* **アプリケーション**: gRPCサーバーを起動します
+  * **テナントサービス**: `localhost:50051` でアクセスできます。(任意のポートに変更したい場合は環境変数 `TENANT_SERVICE_PORT` に値を設定してください)
+  * **カートサービス**: `localhost:50052` でアクセスできます。(任意のポートに変更したい場合は環境変数 `CART_SERVICE_PORT` に値を設定してください)
+  * **注文サービス**: `localhost:50053` でアクセスできます。(任意のポートに変更したい場合は環境変数 `ORDER_SERVICE_PORT` に値を設定してください)
