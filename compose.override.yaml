@@ -17,6 +17,7 @@ services:
     environment: !override
       OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector
       OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
     # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに依存するように置き換える
     depends_on: !override
       opentelemetry-collector-gateway:
@@ -51,6 +52,7 @@ services:
     environment: !override
       OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector
       OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
     # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに依存するように置き換える
     depends_on: !override
       opentelemetry-collector-gateway:
@@ -85,6 +87,7 @@ services:
     environment: !override
       OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector
       OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
     # ルートディレクトリのcompose.yamlで定義したOpenTelemetry Collectorに依存するように置き換える
     depends_on: !override
       opentelemetry-collector-gateway:

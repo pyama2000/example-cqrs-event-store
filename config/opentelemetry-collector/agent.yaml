@@ -24,3 +24,13 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlp/gateway]
+  telemetry:
+    metrics:
+      level: detailed
+      readers:
+        - periodic:
+            interval: 5000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://${env:PROMETHEUS_HOST}:9090/api/v1/otlp/v1/metrics

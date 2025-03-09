@@ -6,19 +6,39 @@ receivers:
 processors:
   batch:
 exporters:
-  debug:
-    verbosity: detailed
+  otlp/traces:
+    endpoint: ${env:GRAFANA_TEMPO_HOST}:4317
+    tls:
+      insecure: true
+  otlphttp/metrics:
+    metrics_endpoint: http://${env:PROMETHEUS_HOST}:9090/api/v1/otlp/v1/metrics
+    tls:
+      insecure: true
+  otlphttp/logs:
+    endpoint: http://${env:GRAFANA_LOKI_HOST}:3100/otlp
+    tls:
+      insecure: true
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlp/traces]
     metrics:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlphttp/metrics]
     logs:
       receivers: [otlp]
       processors: [batch]
-      exporters: [debug]
+      exporters: [otlphttp/logs]
+  telemetry:
+    metrics:
+      level: detailed
+      readers:
+        - periodic:
+            interval: 5000
+            exporter:
+              otlp:
+                protocol: http/protobuf
+                endpoint: http://${env:PROMETHEUS_HOST}:9090/api/v1/otlp/v1/metrics
