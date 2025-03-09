@@ -12,3 +12,5 @@ provider "aws" {
     iam      = var.aws_service_endpoint
   }
 }
+
+provider "archive" {}
