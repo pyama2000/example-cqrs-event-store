@@ -119,7 +119,7 @@ services:
     volumes:
       - order-terraform-volume:/terraform
     environment:
-      TF_VAR_aws_service_endpoint: "http://order-localstack:${LOCALSTACK_GATEWAY_PORT:-4566}"
+      TF_VAR_aws_service_endpoint: "http://order-localstack:4566"
     command: ["apply", "-auto-approve"]
     depends_on:
       order-localstack:
