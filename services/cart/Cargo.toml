@@ -2,16 +2,27 @@
 name = "cart"
 version = "0.1.0"
 edition = "2021"
+default-run = "cart"
 
 [dependencies]
-adapter = { version = "0.1.0", path = "internal/adapter" }
-app = { version = "0.1.0", path = "internal/app" }
-aws-config = "1.5.17"
-driver = { version = "0.1.0", path = "internal/driver" }
-kernel = { version = "0.1.0", path = "internal/kernel" }
-observability = { version = "0.1.0", path = "../../crates/observability", features = ["provider"] }
+adapter = { version = "0.1.0", path = "internal/adapter", optional = true }
+app = { version = "0.1.0", path = "internal/app", optional = true }
+aws-config = { version = "1.5.17", optional = true }
+driver = { version = "0.1.0", path = "internal/driver", optional = true }
+kernel = { version = "0.1.0", path = "internal/kernel", optional = true }
+observability = { version = "0.1.0", path = "../../crates/observability", features = ["provider"], optional = true }
 tokio = { version = "1.41.0", default-features = false, features = ["macros", "rt-multi-thread"] }
-tracing = "0.1.41"
+tracing = { version = "0.1.41", optional = true }
+
+[features]
+cart = ["adapter", "app", "aws-config", "driver", "kernel", "observability", "tracing"]
+adapter = ["dep:adapter"]
+app = ["dep:app"]
+aws-config = ["dep:aws-config"]
+driver = ["dep:driver"]
+kernel = ["dep:kernel"]
+observability = ["dep:observability"]
+tracing = ["dep:tracing"]
 
 [lints.clippy]
 pedantic = "warn"
@@ -22,3 +33,7 @@ resolver = "2"
 
 [workspace.lints.clippy]
 pedantic = "warn"
+
+[[bin]]
+name = "cart"
+required-features = ["cart"]
