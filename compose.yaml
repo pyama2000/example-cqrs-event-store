@@ -99,6 +99,36 @@ services:
       - "${LOCALSTACK_EXTERNAL_SERVICE_PORT_RANGE:-4510-4559}:4510-4559"
     volumes:
       - "${DOCKER_HOST_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+  # NOTE: ./terraformディレクトリをバインドマウントして名前付きボリューム(terraform-volume)にコピーする
+  terraform-setup:
+    image: bash:latest
+    volumes:
+      - ./terraform:/terraform-origin
+      - terraform-volume:/terraform
+    command: ["cp", "-rT", "/terraform-origin", "/terraform"]
+  terraform-init:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    volumes:
+      - terraform-volume:/terraform
+    command: ["init"]
+    depends_on:
+      terraform-setup:
+        condition: service_completed_successfully
+  terraform-apply:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    volumes:
+      - terraform-volume:/terraform
+    environment:
+      TF_VAR_aws_service_endpoint: "http://localstack:4566"
+      TF_VAR_service_endpoints: '{ "cart": "cart-service:50051", "order": "order-service:50051" }'
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      localstack:
+        condition: service_started
+      terraform-init:
+        condition: service_completed_successfully
   tenant-service:
     image: tenant-service:latest
     pull_policy: never
@@ -138,3 +168,6 @@ services:
         condition: service_started
       localstack:
         condition: service_started
+volumes:
+  terraform-volume:
+    name: terraform
