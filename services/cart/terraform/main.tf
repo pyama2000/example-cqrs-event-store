@@ -7,7 +7,7 @@ resource "aws_dynamodb_table" "event_store" {
   billing_mode     = "PAY_PER_REQUEST"
   hash_key         = "aggregate_id"
   range_key        = "id"
-  stream_enabled   = true
+  stream_enabled   = var.enable_integration
   stream_view_type = "NEW_IMAGE"
 
   attribute {
@@ -83,10 +83,19 @@ resource "aws_lambda_function" "event_router" {
   architectures = ["arm64"]
   handler       = "bootstrap"
   filename      = data.archive_file.dummy.output_path
+
+  environment {
+    variables = {
+      CART_SERVICE_ENDPOINT  = var.service_endpoints["cart"]
+      ORDER_SERVICE_ENDPOINT = var.service_endpoints["order"]
+    }
+  }
 }
 
 # Amazon DynamoDB StreamsとAWS Lambda関数を紐づける
 resource "aws_lambda_event_source_mapping" "event_router" {
+  count = var.enable_integration ? 1 : 0
+
   event_source_arn  = aws_dynamodb_table.event_store.stream_arn
   function_name     = aws_lambda_function.event_router.arn
   starting_position = "LATEST"

@@ -126,6 +126,25 @@ services:
         condition: service_started
       cart-terraform-init:
         condition: service_completed_successfully
+  cart-terraform-apply-integration:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    volumes:
+      - cart-terraform-volume:/terraform
+    environment:
+      TF_VAR_aws_service_endpoint: "http://cart-localstack:4566"
+      TF_VAR_enable_integration: "true"
+      TF_VAR_service_endpoints: "{ \"cart\": \"host.docker.internal:${PORT:-50051}\", \"order\": \"order-service:50051\" }"
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      cart-localstack:
+        condition: service_started
+      cart-terraform-init:
+        condition: service_completed_successfully
+      cart-terraform-apply:
+        condition: service_completed_successfully
+    profiles:
+      - integration
 volumes:
   cart-terraform-volume:
     name: cart-terraform
