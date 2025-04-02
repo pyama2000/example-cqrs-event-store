@@ -28,11 +28,7 @@ docker buildx bake
 ### Docker Composeでコンテナを起動する
 
 Docker Composeでアプリケーションやデータストア (DynamoDB)、オブザーバビリティ関連のコンテナを起動します。
-定義ファイルはルートディレクトリの `compose.yaml` と各アプリケーション ( `services` ディレクトリ配下) の `compose.yaml` を利用します。
-
-> [!NOTE]
-> アプリケーションの `compose.yaml` はルートディレクトリの `compose.override.yaml` で定義を一部書き換えています。
-> 最終的に実行される定義ファイルは `docker compose config` (または `docker compose convert` ) を実行して確認できます。
+定義ファイルはルートディレクトリの `compose.yaml` を利用します。
 
 起動されるコンテナの説明:
 
@@ -42,18 +38,27 @@ Docker Composeでアプリケーションやデータストア (DynamoDB)、オ�
 * **Grafana Tempo**: トレースデータを収集します
 * **Grafana Loki**: ログデータを収集します
 * **Prometheus**: メトリクスデータを収集します
-* **OpenTelemetry Collector Agent**:
-  アプリケーションから送信されたテレメトリーデータを収集し、バックエンド (OpenTelemetry Collector Gateway) に送信します。
-  サービスの定義は各アプリケーション ( `services` ディレクトリ配下) の `compose.yaml` で定義されています。
+* **OpenTelemetry Collector Agent**: アプリケーションから送信されたテレメトリーデータを収集し、バックエンド (OpenTelemetry Collector Gateway) に送信します
 * **OpenTelemetry Collector Gateway**: OpenTelemetry Collector Agent からテレメトリーデータを集約してバックエンドに送信します
 * **LocalStack**:
   ローカルマシン上にAWS環境をエミュレートします。
-  Amazon DynamoDBを利用します。
   ローカルからLocalStackにリクエストする場合は `localhost:4566` にアクセスしてください。(任意のポートに変更したい場合は環境変数 `LOCALSTACK_GATEWAY_PORT` に値を設定してください)
 * **Terraform**:
   LocalStackに対してリソースを作成します。
-  サービスの定義は各アプリケーション ( `services` ディレクトリ配下) の `compose.yaml` で定義されています。
+  リソースの定義は `terraform` ディレクトリ配下で定義されています。
 * **アプリケーション**: gRPCサーバーを起動します
   * **テナントサービス**: `localhost:50051` でアクセスできます。(任意のポートに変更したい場合は環境変数 `TENANT_SERVICE_PORT` に値を設定してください)
   * **カートサービス**: `localhost:50052` でアクセスできます。(任意のポートに変更したい場合は環境変数 `CART_SERVICE_PORT` に値を設定してください)
   * **注文サービス**: `localhost:50053` でアクセスできます。(任意のポートに変更したい場合は環境変数 `ORDER_SERVICE_PORT` に値を設定してください)
+
+環境変数:
+
+| 環境変数名 | 説明 | デフォルト値 |
+|-|-|-|
+| `GRAFANA_PORT` | Grafanaのコンソールにアクセスするためのポートを指定する | `3000` |
+| `GRAFANA_TEMPO_LOG_LEVEL` | Grafana Tempoのログレベル | `error` |
+| `LOCALSTACK_GATEWAY_PORT` | LocalStackにアクセスするためのポート | `4566` |
+| `DOCKER_HOST_SOCK` | Dockerソケットの場所 | `-/var/run/docker.sock` |
+| `TENANT_SERVICE_PORT` | テナントサービスにアクセスするためのポート | `50051` |
+| `CART_SERVICE_PORT` | カートサービスにアクセスするためのポート | `50052` |
+| `ORDER_SERVICE_PORT` | 注文サービスにアクセスするためのポート | `50053` |

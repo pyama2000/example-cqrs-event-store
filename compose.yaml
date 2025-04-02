@@ -1,7 +1,3 @@
-include:
-  - ./services/tenant/compose.yaml
-  - ./services/cart/compose.yaml
-  - ./services/order/compose.yaml
 services:
   grafana:
     image: grafana/grafana@sha256:0dc5a246ab16bb2c38a349fb588174e832b4c6c2db0981d0c3e6cd774ba66a54
@@ -96,7 +92,6 @@ services:
     image: localstack/localstack@sha256:722a22bc441ffcaffa434c1720b04f8bfec60cc24b419ebdc4343cc43908de7f
     ports:
       - "${LOCALSTACK_GATEWAY_PORT:-4566}:4566"
-      - "${LOCALSTACK_EXTERNAL_SERVICE_PORT_RANGE:-4510-4559}:4510-4559"
     volumes:
       - "${DOCKER_HOST_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
   # NOTE: ./terraformディレクトリをバインドマウントして名前付きボリューム(terraform-volume)にコピーする
@@ -129,6 +124,18 @@ services:
         condition: service_started
       terraform-init:
         condition: service_completed_successfully
+  tenant-opentelemetry-collector-agent:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector-agent
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      opentelemetry-collector-gateway:
+        condition: service_started
   tenant-service:
     image: tenant-service:latest
     pull_policy: never
@@ -136,11 +143,23 @@ services:
       - "${TENANT_SERVICE_PORT:-50051}:50051"
     environment:
       LOCALSTACK_GATEWAY_HOST: localstack
-      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector
+      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector-agent
     depends_on:
-      tenant-opentelemetry-collector:
+      tenant-opentelemetry-collector-agent:
         condition: service_started
       localstack:
+        condition: service_started
+  cart-opentelemetry-collector-agent:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector-agent
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      opentelemetry-collector-gateway:
         condition: service_started
   cart-service:
     image: cart-service:latest
@@ -149,11 +168,23 @@ services:
       - "${CART_SERVICE_PORT:-50052}:50051"
     environment:
       LOCALSTACK_GATEWAY_HOST: localstack
-      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector
+      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector-agent
     depends_on:
-      cart-opentelemetry-collector:
+      cart-opentelemetry-collector-agent:
         condition: service_started
       localstack:
+        condition: service_started
+  order-opentelemetry-collector-agent:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector-agent
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      opentelemetry-collector-gateway:
         condition: service_started
   order-service:
     image: order-service:latest
@@ -162,9 +193,9 @@ services:
       - "${ORDER_SERVICE_PORT:-50053}:50051"
     environment:
       LOCALSTACK_GATEWAY_HOST: localstack
-      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector
+      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector-agent
     depends_on:
-      order-opentelemetry-collector:
+      order-opentelemetry-collector-agent:
         condition: service_started
       localstack:
         condition: service_started
