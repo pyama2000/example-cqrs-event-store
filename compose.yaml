@@ -137,8 +137,26 @@ services:
       opentelemetry-collector-gateway:
         condition: service_started
   tenant-service:
-    image: tenant-service:latest
-    pull_policy: never
+    build:
+      context: .
+      dockerfile: ./rust.Dockerfile
+      args:
+        APPLICATION_NAME: "tenant"
+        SERVICE_DIRECTORY: "services/tenant"
+    develop:
+      watch:
+        - path: ./crates
+          action: rebuild
+        - path: ./proto
+          action: rebuild
+        - path: ./services/tenant/src/main.rs
+          action: rebuild
+        - path: ./services/tenant/internal
+          action: rebuild
+        - path: ./services/tenant/Cargo.lock
+          action: rebuild
+        - path: ./services/tenant/Cargo.toml
+          action: rebuild
     ports:
       - "${TENANT_SERVICE_PORT:-50051}:50051"
     environment:
@@ -147,8 +165,8 @@ services:
     depends_on:
       tenant-opentelemetry-collector-agent:
         condition: service_started
-      localstack:
-        condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
   cart-opentelemetry-collector-agent:
     image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
     volumes:
@@ -162,8 +180,26 @@ services:
       opentelemetry-collector-gateway:
         condition: service_started
   cart-service:
-    image: cart-service:latest
-    pull_policy: never
+    build:
+      context: .
+      dockerfile: ./rust.Dockerfile
+      args:
+        APPLICATION_NAME: "cart"
+        SERVICE_DIRECTORY: "services/cart"
+    develop:
+      watch:
+        - path: ./crates
+          action: rebuild
+        - path: ./proto
+          action: rebuild
+        - path: ./services/cart/src/main.rs
+          action: rebuild
+        - path: ./services/cart/internal
+          action: rebuild
+        - path: ./services/cart/Cargo.lock
+          action: rebuild
+        - path: ./services/cart/Cargo.toml
+          action: rebuild
     ports:
       - "${CART_SERVICE_PORT:-50052}:50051"
     environment:
@@ -172,8 +208,8 @@ services:
     depends_on:
       cart-opentelemetry-collector-agent:
         condition: service_started
-      localstack:
-        condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
   order-opentelemetry-collector-agent:
     image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
     volumes:
@@ -187,8 +223,26 @@ services:
       opentelemetry-collector-gateway:
         condition: service_started
   order-service:
-    image: order-service:latest
-    pull_policy: never
+    build:
+      context: .
+      dockerfile: ./rust.Dockerfile
+      args:
+        APPLICATION_NAME: "order"
+        SERVICE_DIRECTORY: "services/order"
+    develop:
+      watch:
+        - path: ./crates
+          action: rebuild
+        - path: ./proto
+          action: rebuild
+        - path: ./services/order/src/main.rs
+          action: rebuild
+        - path: ./services/order/internal
+          action: rebuild
+        - path: ./services/order/Cargo.lock
+          action: rebuild
+        - path: ./services/order/Cargo.toml
+          action: rebuild
     ports:
       - "${ORDER_SERVICE_PORT:-50053}:50051"
     environment:
@@ -197,8 +251,8 @@ services:
     depends_on:
       order-opentelemetry-collector-agent:
         condition: service_started
-      localstack:
-        condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
 volumes:
   terraform-volume:
     name: terraform

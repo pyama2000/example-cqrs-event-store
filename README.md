@@ -2,6 +2,10 @@
 
 このリポジトリはAmazon Web Servicesブログの [Amazon DynamoDB を使った CQRS イベントストアの構築](https://aws.amazon.com/jp/blogs/news/build-a-cqrs-event-store-with-amazon-dynamodb/) を参考にRustでイベントソーシングを試してみたリポジトリです。
 
+## Prerequisites
+
+* Docker Compose: 2.22.0 and later
+
 ## Getting Started
 
 1. RustアプリケーションのDockerイメージをビルドする
@@ -17,18 +21,25 @@
 
 ```bash
 # 各サービスを1つずつビルドする
-docker buildx bake tenant \
-  && docker buildx bake cart \
-  && docker buildx bake order
+docker compose build tenant-service \
+  && docker compose build cart-service \
+  && docker compose build order-service
 
 # 各サービスを並列でビルドする
-docker buildx bake
+docker compose build
 ```
 
 ### Docker Composeでコンテナを起動する
 
 Docker Composeでアプリケーションやデータストア (DynamoDB)、オブザーバビリティ関連のコンテナを起動します。
 定義ファイルはルートディレクトリの `compose.yaml` を利用します。
+
+```bash
+docker compose up
+
+# アプリケーションコードの変更を検知してコンテナを作り直す
+docker compose watch
+```
 
 起動されるコンテナの説明:
 

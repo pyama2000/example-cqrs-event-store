@@ -14,7 +14,7 @@ RUN --mount=type=bind,source="${SERVICE_DIRECTORY}/src",target=src \
     --mount=type=bind,source="${SERVICE_DIRECTORY}/internal",target=internal \
     --mount=type=bind,source="${SERVICE_DIRECTORY}/Cargo.toml",target=Cargo.toml \
     --mount=type=bind,source="${SERVICE_DIRECTORY}/Cargo.lock",target=Cargo.lock \
-    --mount=type=cache,target=$WORKDIR \
+    --mount=type=cache,target="$WORKDIR/target" \
     --mount=type=cache,target="/usr/local/cargo/${APPLICATION_NAME}/registry/" \
     cargo build --locked --release \
  && cp "./target/release/${APPLICATION_NAME}" "/bin/application"
