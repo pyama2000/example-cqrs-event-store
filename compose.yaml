@@ -179,6 +179,54 @@ services:
     depends_on:
       opentelemetry-collector-gateway:
         condition: service_started
+  cart-event-router-build:
+    image: ghcr.io/cargo-lambda/cargo-lambda:1.8.0
+    working_dir: /app
+    volumes:
+      - ./crates:/app/crates
+      - ./proto:/app/proto
+      - ./services/cart:/app/services/cart
+    command:
+      [
+        "cargo",
+        "lambda",
+        "build",
+        "--release",
+        "--arm64",
+        "--no-default-features",
+        "--features=event-router",
+        "--bin=event-router",
+        "--manifest-path=services/cart/Cargo.toml",
+      ]
+    depends_on:
+      terraform-apply:
+        condition: service_completed_successfully
+  cart-event-router-deploy:
+    image: ghcr.io/cargo-lambda/cargo-lambda:1.8.0
+    working_dir: /app
+    volumes:
+      - ./crates:/app/crates
+      - ./proto:/app/proto
+      - ./services/cart:/app/services/cart
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: ap-northeast-1
+    command:
+      [
+        "cargo",
+        "lambda",
+        "deploy",
+        "--endpoint-url=http://localstack:4566",
+        "--binary-name=event-router",
+        "--manifest-path=services/cart/Cargo.toml",
+        "cart-event-router",
+      ]
+    depends_on:
+      cart-event-router-build:
+        condition: service_completed_successfully
+      opentelemetry-collector-gateway:
+        condition: service_started
   cart-service:
     build:
       context: .
@@ -208,6 +256,8 @@ services:
     depends_on:
       cart-opentelemetry-collector-agent:
         condition: service_started
+      cart-event-router-deploy:
+        condition: service_completed_successfully
       terraform-apply:
         condition: service_completed_successfully
   order-opentelemetry-collector-agent:
