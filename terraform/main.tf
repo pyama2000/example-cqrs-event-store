@@ -133,6 +133,13 @@ resource "aws_lambda_function" "event_router" {
   environment {
     variables = { for env in each.value.event_router.environments : env.name => env.value }
   }
+
+  lifecycle {
+    ignore_changes = [
+      runtime,
+      filename,
+    ]
+  }
 }
 
 # Amazon DynamoDB StreamsとAWS Lambda関数を紐づける

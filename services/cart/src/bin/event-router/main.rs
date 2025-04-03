@@ -18,12 +18,12 @@ async fn handler(
         .collect();
     let cart_service_endpoint =
         std::env::var("CART_SERVICE_ENDPOINT").context("CART_SERVICE_ENDPOINT must be set")?;
-    let mut cart_service = CartServiceClient::connect(cart_service_endpoint)
+    let mut cart_service = CartServiceClient::connect(format!("http://{cart_service_endpoint}"))
         .await
         .context("connect cart service")?;
     let order_service_endpoint =
         std::env::var("ORDER_SERVICE_ENDPOINT").context("ORDER_SERVICE_ENDPOINT must be set")?;
-    let mut order_service = OrderServiceClient::connect(order_service_endpoint)
+    let mut order_service = OrderServiceClient::connect(format!("http://{order_service_endpoint}"))
         .await
         .context("connect order service")?;
     for model in order_placed_models {
