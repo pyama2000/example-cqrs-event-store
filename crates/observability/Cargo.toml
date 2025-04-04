@@ -26,6 +26,10 @@ tracing-subscriber = { version = "0.3.19", features = ["env-filter"], optional =
 
 [features]
 default = []
+grpc-client = [
+    "dep:opentelemetry",
+    "dep:tonic",
+]
 server = [
     "dep:http",
     "dep:opentelemetry",

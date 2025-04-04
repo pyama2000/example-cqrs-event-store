@@ -42,6 +42,10 @@ async fn handler(
         };
         let mut request = tonic::Request::new(message.clone());
         request.set_timeout(std::time::Duration::from_millis(500));
+        observability::grpc_client::inject(
+            &observability::grpc_client::context(),
+            request.metadata_mut(),
+        );
         let response = cart_service
             .get(request)
             .await
@@ -66,6 +70,10 @@ async fn handler(
         let message = proto::order::v1::CreateRequest { cart_id, items };
         let mut request = tonic::Request::new(message.clone());
         request.set_timeout(std::time::Duration::from_millis(500));
+        observability::grpc_client::inject(
+            &observability::grpc_client::context(),
+            request.metadata_mut(),
+        );
         order_service
             .create(request)
             .await

@@ -43,6 +43,7 @@ event-router = [
     "dep:tracing-subscriber",
     "observability/aws-lambda",
     "observability/aws-dynamodb",
+    "observability/grpc-client",
 ]
 
 [lints.clippy]
