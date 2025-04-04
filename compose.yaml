@@ -198,9 +198,6 @@ services:
         "--bin=event-router",
         "--manifest-path=services/cart/Cargo.toml",
       ]
-    depends_on:
-      terraform-apply:
-        condition: service_completed_successfully
   cart-event-router-deploy:
     image: ghcr.io/cargo-lambda/cargo-lambda:1.8.0
     working_dir: /app
@@ -227,6 +224,8 @@ services:
         condition: service_completed_successfully
       opentelemetry-collector-gateway:
         condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
   cart-service:
     build:
       context: .
