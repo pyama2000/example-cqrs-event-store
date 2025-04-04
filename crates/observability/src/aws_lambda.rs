@@ -38,7 +38,6 @@ pub struct OpenTelemetryService<S, C> {
     flush: C,
     coldstart: bool,
     service_version: String,
-    span_context: opentelemetry::trace::SpanContext,
 }
 
 impl<S, C> tower::Service<lambda_runtime::LambdaInvocation> for OpenTelemetryService<S, C>
@@ -84,7 +83,6 @@ where
         span.set_attribute(FAAS_TRIGGER, "datasource");
         span.set_attribute(FAAS_INVOCATION_ID, req.context.request_id.clone());
         span.set_attribute(FAAS_COLDSTART, self.coldstart);
-        span.add_link(self.span_context.clone());
         self.coldstart = false;
         let future = {
             let _guard = span.enter();
@@ -107,22 +105,16 @@ where
 pub struct OpenTelemetryLayer<C> {
     flush: C,
     service_version: String,
-    span_context: opentelemetry::trace::SpanContext,
 }
 
 impl<C> OpenTelemetryLayer<C>
 where
     C: Fn() -> Result<(), crate::Error> + Clone,
 {
-    pub fn new(
-        flush: C,
-        service_version: String,
-        span_context: opentelemetry::trace::SpanContext,
-    ) -> Self {
+    pub fn new(flush: C, service_version: String) -> Self {
         Self {
             flush,
             service_version,
-            span_context,
         }
     }
 }
@@ -139,7 +131,6 @@ where
             flush: self.flush.clone(),
             coldstart: true,
             service_version: self.service_version.clone(),
-            span_context: self.span_context.clone(),
         }
     }
 }
@@ -176,7 +167,6 @@ pub async fn run<A, F, R, B, S, D, E, C>(
     handler: F,
     flush: C,
     service_version: String,
-    span_context: opentelemetry::trace::SpanContext,
 ) -> Result<(), lambda_runtime::Error>
 where
     F: tower::Service<lambda_runtime::LambdaEvent<A>, Response = R>,
@@ -190,10 +180,13 @@ where
     E: Into<lambda_runtime::Error> + Send + std::fmt::Debug,
     C: Fn() -> Result<(), crate::Error> + Clone,
 {
-    let runtime = lambda_runtime::Runtime::new(handler).layer(OpenTelemetryLayer::new(
-        flush,
-        service_version,
-        span_context,
-    ));
+    let runtime = lambda_runtime::Runtime::new(handler)
+        .layer(OpenTelemetryLayer::new(flush, service_version));
     runtime.run().await
+}
+
+pub fn add_link(cx: opentelemetry::trace::SpanContext, span: &tracing::Span) {
+    use tracing_opentelemetry::OpenTelemetrySpanExt as _;
+
+    span.add_link(cx);
 }
