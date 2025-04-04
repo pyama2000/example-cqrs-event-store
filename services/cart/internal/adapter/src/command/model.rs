@@ -172,6 +172,11 @@ impl EventStoreModel {
     }
 
     #[must_use]
+    pub fn metadata(&self) -> &std::collections::HashMap<String, String> {
+        &self.metadata
+    }
+
+    #[must_use]
     pub(crate) fn metadata_mut(&mut self) -> &mut std::collections::HashMap<String, String> {
         &mut self.metadata
     }

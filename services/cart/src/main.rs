@@ -8,7 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync + 'static>
         std::env::var("HOST").unwrap_or("0.0.0.0".to_string()),
         std::env::var("PORT").unwrap_or(50051.to_string()),
     );
-    let config = aws_config::defaults(aws_config::BehaviorVersion::v2024_03_28())
+    let config = aws_config::defaults(aws_config::BehaviorVersion::v2025_01_17())
         .endpoint_url(format!(
             "http://{}:{}",
             std::env::var("LOCALSTACK_GATEWAY_HOST").unwrap_or("localhost".to_string()),

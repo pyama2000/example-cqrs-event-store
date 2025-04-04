@@ -41,6 +41,8 @@ event-router = [
     "dep:serde_dynamo",
     "dep:tonic",
     "dep:tracing-subscriber",
+    "observability/aws-lambda",
+    "observability/aws-dynamodb",
 ]
 
 [lints.clippy]

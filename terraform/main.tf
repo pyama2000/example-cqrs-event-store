@@ -18,6 +18,10 @@ locals {
             name  = "ORDER_SERVICE_ENDPOINT",
             value = var.service_endpoints["order"],
           },
+          {
+            name  = "OPENTELEMETRY_COLLECTOR_HOST",
+            value = "opentelemetry-collector-gateway",
+          },
         ],
       },
     },
