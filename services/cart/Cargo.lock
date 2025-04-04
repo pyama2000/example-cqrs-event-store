@@ -10,6 +10,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
  "kernel",
+ "observability",
  "serde",
  "serde_dynamo",
  "tracing",

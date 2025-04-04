@@ -142,11 +142,12 @@ impl From<kernel::command::model::aggregate::Aggregate> for AggregatePayload {
 }
 
 /// イベントストアのテーブルモデル
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct EventStoreModel {
     id: u64,
     aggregate_id: String,
     payload: EventPayload,
+    metadata: std::collections::HashMap<String, String>,
 }
 
 impl EventStoreModel {
@@ -156,6 +157,7 @@ impl EventStoreModel {
             id,
             aggregate_id,
             payload,
+            metadata: std::collections::HashMap::new(),
         }
     }
 
@@ -167,6 +169,11 @@ impl EventStoreModel {
     #[must_use]
     pub fn payload(&self) -> &EventPayload {
         &self.payload
+    }
+
+    #[must_use]
+    pub(crate) fn metadata_mut(&mut self) -> &mut std::collections::HashMap<String, String> {
+        &mut self.metadata
     }
 }
 
