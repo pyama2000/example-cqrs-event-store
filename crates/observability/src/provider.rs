@@ -41,6 +41,9 @@ pub fn init_providers(
         )
         .build();
 
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+    );
     let tracer = init_tracer(resource.clone())?;
     let meter = init_meter(resource.clone())?;
     let logger = init_logger(resource)?;
@@ -120,6 +123,9 @@ pub fn init_providers_with_flush(
         )
         .build();
 
+    opentelemetry::global::set_text_map_propagator(
+        opentelemetry_sdk::propagation::TraceContextPropagator::new(),
+    );
     let tracer = init_tracer(resource.clone())?;
     let meter = init_meter(resource.clone())?;
     let logger = init_logger(resource)?;
