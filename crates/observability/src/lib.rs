@@ -1,3 +1,5 @@
+#[cfg(feature = "aws-dynamodb")]
+pub mod aws_dynamodb;
 #[cfg(feature = "aws-lambda")]
 pub mod aws_lambda;
 #[cfg(feature = "provider")]

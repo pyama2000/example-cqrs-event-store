@@ -56,6 +56,11 @@ aws-lambda = [
     "dep:serde",
     "dep:tower",
 ]
+aws-dynamodb = [
+    "opentelemetry/trace",
+    "dep:tracing",
+    "dep:tracing-opentelemetry",
+]
 
 [lints.clippy]
 pedantic = "warn"
