@@ -21,17 +21,17 @@ pub fn init_providers(
     service_name: &'static str,
     service_version: &'static str,
 ) -> Result<impl Fn() -> Result<(), Error>, Error> {
-    use opentelemetry::KeyValue;
     use opentelemetry::trace::TracerProvider as _;
+    use opentelemetry::KeyValue;
     use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
     use opentelemetry_sdk::Resource;
-    use opentelemetry_semantic_conventions::SCHEMA_URL;
     use opentelemetry_semantic_conventions::resource::SERVICE_VERSION;
+    use opentelemetry_semantic_conventions::SCHEMA_URL;
     use tracing::level_filters::LevelFilter;
     use tracing_opentelemetry::OpenTelemetryLayer;
-    use tracing_subscriber::EnvFilter;
     use tracing_subscriber::layer::SubscriberExt;
     use tracing_subscriber::util::SubscriberInitExt as _;
+    use tracing_subscriber::EnvFilter;
 
     let resource = Resource::builder()
         .with_service_name(service_name)
@@ -41,9 +41,6 @@ pub fn init_providers(
         )
         .build();
 
-    opentelemetry::global::set_text_map_propagator(
-        opentelemetry_sdk::propagation::TraceContextPropagator::new(),
-    );
     let tracer = init_tracer(resource.clone())?;
     let meter = init_meter(resource.clone())?;
     let logger = init_logger(resource)?;
@@ -78,95 +75,13 @@ pub fn init_providers(
     Ok(shutdown)
 }
 
-/// 各種プロバイダーの登録し、滞留しているテレメトリーデータを即時に送信するクロージャーを返す。
-///
-/// # Errors
-///
-/// 各種プロバイダーの登録時に何らかの問題が発生したらエラーが返る。
-/// 返り値のクロージャー内でテレメトリーデータを送信できなかった場合も同様にエラーが返る。
-///
-/// # Examples
-///
-/// ```no_run
-/// let force_flush = observability::provider::init_providers(
-///     env!("CARGO_PKG_NAME"),
-///     env!("CARGO_PKG_VERSION"),
-/// )
-/// .expect("failed to init providers");
-///
-/// // Some codes
-///
-/// force_flush().expect("failed to flush all pending telemetry");
-/// ```
-#[cfg(feature = "aws-lambda")]
-pub fn init_providers_with_flush(
-    service_name: &'static str,
-    service_version: &'static str,
-) -> Result<impl Fn() -> Result<(), Error> + Clone, Error> {
-    use opentelemetry::KeyValue;
-    use opentelemetry::trace::TracerProvider as _;
-    use opentelemetry_appender_tracing::layer::OpenTelemetryTracingBridge;
-    use opentelemetry_sdk::Resource;
-    use opentelemetry_semantic_conventions::SCHEMA_URL;
-    use opentelemetry_semantic_conventions::resource::SERVICE_VERSION;
-    use tracing::level_filters::LevelFilter;
-    use tracing_opentelemetry::OpenTelemetryLayer;
-    use tracing_subscriber::EnvFilter;
-    use tracing_subscriber::layer::SubscriberExt;
-    use tracing_subscriber::util::SubscriberInitExt as _;
-
-    let resource = Resource::builder()
-        .with_service_name(service_name)
-        .with_schema_url(
-            [KeyValue::new(SERVICE_VERSION, service_version)],
-            SCHEMA_URL,
-        )
-        .build();
-
-    opentelemetry::global::set_text_map_propagator(
-        opentelemetry_sdk::propagation::TraceContextPropagator::new(),
-    );
-    let tracer = init_tracer(resource.clone())?;
-    let meter = init_meter(resource.clone())?;
-    let logger = init_logger(resource)?;
-
-    tracing_subscriber::registry()
-        .with(OpenTelemetryLayer::new(
-            tracer.tracer(env!("CARGO_PKG_NAME")),
-        ))
-        .with(OpenTelemetryTracingBridge::new(&logger))
-        .with(
-            tracing_subscriber::fmt::layer()
-                .with_thread_names(true)
-                .with_file(true)
-                .with_line_number(true)
-                .with_target(true),
-        )
-        .with(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy()
-                .add_directive("aws_config=error".parse()?)
-                .add_directive("aws_smithy_runtime=error".parse()?),
-        )
-        .init();
-
-    let flush = move || {
-        tracer.force_flush()?;
-        meter.force_flush()?;
-        logger.force_flush()?;
-        Ok::<_, Error>(())
-    };
-    Ok(flush)
-}
-
 #[allow(clippy::doc_markdown)]
 /// テレメトリデータを送信するOpenTelemetry CollectorのgRPCエンドポイント
 #[cfg(feature = "provider")]
 static OPENTELEMETRY_COLLECTOR_GRPC_ENDPOINT: std::sync::LazyLock<String> =
     std::sync::LazyLock::new(|| {
-        let host = std::env::var("OPENTELEMETRY_COLLECTOR_HOST").unwrap_or("0.0.0.0".to_string());
-        let port = std::env::var("OPENTELEMETRY_COLLECTOR_GRPC_PORT").unwrap_or("4317".to_string());
+        let host = option_env!("OPENTELEMETRY_COLLECTOR_HOST").unwrap_or("0.0.0.0");
+        let port = option_env!("OPENTELEMETRY_COLLECTOR_GRPC_PORT").unwrap_or("4317");
         format!("http://{host}:{port}")
     });
 

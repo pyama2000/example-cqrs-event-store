@@ -219,8 +219,7 @@ impl kernel::command::processor::CommandProcessor for CommandRepository {
 }
 
 /// イベントをイベントストアに追加する
-fn put_event(mut event: EventStoreModel) -> Result<TransactWriteItem, anyhow::Error> {
-    observability::aws_dynamodb::inject(event.metadata_mut());
+fn put_event(event: EventStoreModel) -> Result<TransactWriteItem, anyhow::Error> {
     let tx = TransactWriteItem::builder()
         .put(
             Put::builder()

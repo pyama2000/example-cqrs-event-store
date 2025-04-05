@@ -2,49 +2,16 @@
 name = "cart"
 version = "0.1.0"
 edition = "2021"
-default-run = "cart"
 
 [dependencies]
-adapter = { version = "0.1.0", path = "internal/adapter", optional = true }
-anyhow = { version = "1.0.97", optional = true }
-app = { version = "0.1.0", path = "internal/app", optional = true }
-aws-config = { version = "1.5.17", optional = true }
-aws_lambda_events = { version = "0.16.0", default-features = false, features = ["dynamodb"], optional = true }
-driver = { version = "0.1.0", path = "internal/driver", optional = true }
-kernel = { version = "0.1.0", path = "internal/kernel", optional = true }
-lambda_runtime = { version = "0.13.0", optional = true }
-observability = { version = "0.1.0", path = "../../crates/observability", features = ["provider"], optional = true }
-proto = { version = "0.1.0", path = "../../proto/generate/rust", default-features = false, features = ["cart-v1", "order-v1"], optional = true }
-serde_dynamo = { version = "4.2.14", features = ["aws-sdk-dynamodb+1"], optional = true }
+adapter = { version = "0.1.0", path = "internal/adapter" }
+app = { version = "0.1.0", path = "internal/app" }
+aws-config = "1.5.17"
+driver = { version = "0.1.0", path = "internal/driver" }
+kernel = { version = "0.1.0", path = "internal/kernel" }
+observability = { version = "0.1.0", path = "../../crates/observability", features = ["provider"] }
 tokio = { version = "1.41.0", default-features = false, features = ["macros", "rt-multi-thread"] }
-tonic = { version = "0.12.3", default-features = false, optional = true }
-tracing = { version = "0.1.41", optional = true }
-tracing-subscriber = { version = "0.3.19", default-features = false, features = ["json"], optional = true }
-
-[features]
-default = ["cart"]
-cart = [
-    "dep:adapter",
-    "dep:app",
-    "dep:aws-config",
-    "dep:driver",
-    "dep:kernel",
-    "dep:observability",
-    "dep:tracing",
-]
-event-router = [
-    "dep:adapter",
-    "dep:anyhow",
-    "dep:aws_lambda_events",
-    "dep:lambda_runtime",
-    "dep:proto",
-    "dep:serde_dynamo",
-    "dep:tonic",
-    "dep:tracing-subscriber",
-    "observability/aws-lambda",
-    "observability/aws-dynamodb",
-    "observability/grpc-client",
-]
+tracing = "0.1.41"
 
 [lints.clippy]
 pedantic = "warn"
@@ -55,11 +22,3 @@ resolver = "2"
 
 [workspace.lints.clippy]
 pedantic = "warn"
-
-[[bin]]
-name = "cart"
-required-features = ["cart"]
-
-[[bin]]
-name = "event-router"
-required-features = ["event-router"]
