@@ -142,11 +142,12 @@ impl From<kernel::command::model::aggregate::Aggregate> for AggregatePayload {
 }
 
 /// イベントストアのテーブルモデル
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) struct EventStoreModel {
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct EventStoreModel {
     id: u64,
     aggregate_id: String,
     payload: EventPayload,
+    metadata: std::collections::HashMap<String, String>,
 }
 
 impl EventStoreModel {
@@ -156,7 +157,28 @@ impl EventStoreModel {
             id,
             aggregate_id,
             payload,
+            metadata: std::collections::HashMap::new(),
         }
+    }
+
+    #[must_use]
+    pub fn aggregate_id(&self) -> &str {
+        &self.aggregate_id
+    }
+
+    #[must_use]
+    pub fn payload(&self) -> &EventPayload {
+        &self.payload
+    }
+
+    #[must_use]
+    pub fn metadata(&self) -> &std::collections::HashMap<String, String> {
+        &self.metadata
+    }
+
+    #[must_use]
+    pub(crate) fn metadata_mut(&mut self) -> &mut std::collections::HashMap<String, String> {
+        &mut self.metadata
     }
 }
 
@@ -174,7 +196,7 @@ where
 
 /// イベントストアのペイロード
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub(crate) enum EventPayload {
+pub enum EventPayload {
     CreatedV1,
     ItemAddedV1 { tenant_id: String, item_id: String },
     ItemRemovedV1 { tenant_id: String, item_id: String },

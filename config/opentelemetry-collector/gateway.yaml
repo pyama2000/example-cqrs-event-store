@@ -6,8 +6,6 @@ receivers:
 processors:
   batch:
 exporters:
-  debug:
-    verbosity: detailed
   otlp/traces:
     endpoint: ${env:GRAFANA_TEMPO_HOST}:4317
     tls:
@@ -34,13 +32,3 @@ service:
       receivers: [otlp]
       processors: [batch]
       exporters: [otlphttp/logs]
-  telemetry:
-    metrics:
-      level: detailed
-      readers:
-        - periodic:
-            interval: 5000
-            exporter:
-              otlp:
-                protocol: http/protobuf
-                endpoint: http://${env:PROMETHEUS_HOST}:9090/api/v1/otlp/v1/metrics

@@ -1,4 +1,7 @@
-**/target
+.git/
+templates/
+
+**/target/*
 
 **/.terraform/*
 *.tfstate
