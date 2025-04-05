@@ -1,59 +1,75 @@
 # Example of a CQRS event store
 
-このリポジトリは Amazon Web Services ブログの [Amazon DynamoDB を使った CQRS イベントストアの構築](https://aws.amazon.com/jp/blogs/news/build-a-cqrs-event-store-with-amazon-dynamodb/) を参考に Rust でイベントソーシングを試してみたリポジトリです。
+このリポジトリはAmazon Web Servicesブログの [Amazon DynamoDB を使った CQRS イベントストアの構築](https://aws.amazon.com/jp/blogs/news/build-a-cqrs-event-store-with-amazon-dynamodb/) を参考にRustでイベントソーシングを試してみたリポジトリです。
 
-## Example
+## Prerequisites
 
-### MySQL の DB を立ち上げてマイグレーションを実行する
+* Docker Compose: 2.22.0 and later
+
+## Getting Started
+
+1. RustアプリケーションのDockerイメージをビルドする
+1. Docker Composeでコンテナを起動する
+
+### RustアプリケーションのDockerイメージをビルドする
+
+事前にRustアプリケーション (gRPCサーバー) のDockerイメージをビルドします。
+事前にビルドするのは、Docker Composeでコンテナを起動する時間を短縮するためです。
+
+> [!IMPORTANT]
+> Dockerイメージのビルドに多くのリソースを利用するので1つずつビルドすることをおすすめします
 
 ```bash
-docker compose up --wait
-cargo run --bin migrate --features migrate
+# 各サービスを1つずつビルドする
+docker compose build tenant-service \
+  && docker compose build cart-service \
+  && docker compose build order-service
+
+# 各サービスを並列でビルドする
+docker compose build
 ```
 
-MySQL の設定は環境変数によって変更することができます。
+### Docker Composeでコンテナを起動する
+
+Docker Composeでアプリケーションやデータストア (DynamoDB)、オブザーバビリティ関連のコンテナを起動します。
+定義ファイルはルートディレクトリの `compose.yaml` を利用します。
+
+```bash
+docker compose up
+
+# アプリケーションコードの変更を検知してコンテナを作り直す
+docker compose watch
+```
+
+起動されるコンテナの説明:
+
+* **Grafana**:
+  トレース・ログ・メトリクスを可視化します。
+  `localhost:3000` でコンソールにアクセスできます。(任意のポートに変更したい場合は環境変数 `GRAFANA_PORT` に値を設定してください)
+* **Grafana Tempo**: トレースデータを収集します
+* **Grafana Loki**: ログデータを収集します
+* **Prometheus**: メトリクスデータを収集します
+* **OpenTelemetry Collector Agent**: アプリケーションから送信されたテレメトリーデータを収集し、バックエンド (OpenTelemetry Collector Gateway) に送信します
+* **OpenTelemetry Collector Gateway**: OpenTelemetry Collector Agent からテレメトリーデータを集約してバックエンドに送信します
+* **LocalStack**:
+  ローカルマシン上にAWS環境をエミュレートします。
+  ローカルからLocalStackにリクエストする場合は `localhost:4566` にアクセスしてください。(任意のポートに変更したい場合は環境変数 `LOCALSTACK_GATEWAY_PORT` に値を設定してください)
+* **Terraform**:
+  LocalStackに対してリソースを作成します。
+  リソースの定義は `terraform` ディレクトリ配下で定義されています。
+* **アプリケーション**: gRPCサーバーを起動します
+  * **テナントサービス**: `localhost:50051` でアクセスできます。(任意のポートに変更したい場合は環境変数 `TENANT_SERVICE_PORT` に値を設定してください)
+  * **カートサービス**: `localhost:50052` でアクセスできます。(任意のポートに変更したい場合は環境変数 `CART_SERVICE_PORT` に値を設定してください)
+  * **注文サービス**: `localhost:50053` でアクセスできます。(任意のポートに変更したい場合は環境変数 `ORDER_SERVICE_PORT` に値を設定してください)
+
+環境変数:
 
 | 環境変数名 | 説明 | デフォルト値 |
-|:-|:-|:-|
-| MYSQL_USERNAME | MySQL に接続するためのユーザー名 | `root` |
-| MYSQL_PASSWORD | MySQL に接続するためのパスワード | `root` |
-| MYSQL_PORT | ローカルにマッピングする MySQL のポート | `3306` |
-| MYSQL_DATABASE | MySQL のデータベース名 | `widget` |
-
-### サーバーを立ち上げる
-
-```bash
-cargo run --release
-```
-
-### MySQL クライアントで接続する
-
-```bash
-mysql -h 127.0.0.1 --user ${MYSQL_USERNAME:-root} -p${MYSQL_PASSWORD:-root} --port ${MYSQL_PORT:-3306} --database ${MYSQL_DATABASE:-widget}
-```
-
-### リクエスト
-
-Widget を作成する:
-
-```bash
-curl -s http://localhost:8080/widgets \
-  -H "Content-Type: application/json" \
-  -d '{ "widget_name": "widget name 1", "widget_description": "widget description 1"}'
-```
-
-Widget の名前を変更する:
-
-```bash
-curl -v "http://localhost:8080/widgets/${WIDGET_ID}/name" \
-  -H "Content-Type: application/json" \
-  -d '{ "widget_name": "widget name 2"}'
-```
-
-Widget の説明を変更する:
-
-```bash
-curl -v "http://localhost:8080/widgets/${WIDGET_ID}/description" \
-  -H "Content-Type: application/json" \
-  -d '{ "widget_description": "widget description 2"}'
-```
+|-|-|-|
+| `GRAFANA_PORT` | Grafanaのコンソールにアクセスするためのポートを指定する | `3000` |
+| `GRAFANA_TEMPO_LOG_LEVEL` | Grafana Tempoのログレベル | `error` |
+| `LOCALSTACK_GATEWAY_PORT` | LocalStackにアクセスするためのポート | `4566` |
+| `DOCKER_HOST_SOCK` | Dockerソケットの場所 | `-/var/run/docker.sock` |
+| `TENANT_SERVICE_PORT` | テナントサービスにアクセスするためのポート | `50051` |
+| `CART_SERVICE_PORT` | カートサービスにアクセスするためのポート | `50052` |
+| `ORDER_SERVICE_PORT` | 注文サービスにアクセスするためのポート | `50053` |

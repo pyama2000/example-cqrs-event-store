@@ -1,0 +1,307 @@
+services:
+  grafana:
+    image: grafana/grafana@sha256:0dc5a246ab16bb2c38a349fb588174e832b4c6c2db0981d0c3e6cd774ba66a54
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./config/grafana-datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_AUTH_DISABLE_LOGIN_FORM: "true"
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor
+      GRAFANA_TEMPO_HOST: grafana-tempo
+      GRAFANA_LOKI_HOST: grafana-loki
+      PROMETHEUS_HOST: prometheus
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/health || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 3
+  grafana-tempo:
+    image: grafana/tempo@sha256:a5a16b88cf79eb23d1c0ce523607688797aeec95242ea2dedd0c1b65c7a4fb13
+    volumes:
+      - ./config/tempo.yaml:/etc/tempo.yaml
+    environment:
+      GRAFANA_TEMPO_LOG_LEVEL: "${GRAFANA_TEMPO_LOG_LEVEL:-error}"
+      GRAFANA_TEMPO_HOST: grafana-tempo
+      PROMETHEUS_HOST: prometheus
+    command: ["-config.file=/etc/tempo.yaml", "-config.expand-env=true"]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "/busybox/wget",
+          "--no-verbose",
+          "--tries=1",
+          "--spider",
+          "http://127.0.0.1:3200/ready",
+        ]
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 3
+  grafana-loki:
+    image: grafana/loki@sha256:8af2de1abbdd7aa92b27c9bcc96f0f4140c9096b507c77921ffddf1c6ad6c48f
+    volumes:
+      - ./config/loki.yaml:/etc/loki.yaml
+    command: ["-config.file=/etc/loki.yaml"]
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:3100/ready || exit 1
+      start_period: 30s
+      interval: 10s
+      timeout: 10s
+      retries: 3
+  prometheus:
+    image: prom/prometheus@sha256:6559acbd5d770b15bb3c954629ce190ac3cbbdb2b7f1c30f0385c4e05104e218
+    volumes:
+      - ./config/prometheus.yaml:/etc/prometheus.yaml
+    command:
+      [
+        "--config.file=/etc/prometheus.yaml",
+        "--web.enable-remote-write-receiver",
+        "--web.enable-otlp-receiver",
+        "--enable-feature=exemplar-storage",
+        "--enable-feature=native-histograms",
+      ]
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://127.0.0.1:9090/-/ready || exit 1
+      interval: 10s
+      timeout: 10s
+      retries: 3
+  opentelemetry-collector-gateway:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/gateway.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: opentelemetry-collector-gateway
+      GRAFANA_TEMPO_HOST: grafana-tempo
+      GRAFANA_LOKI_HOST: grafana-loki
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      grafana:
+        condition: service_healthy
+      grafana-tempo:
+        condition: service_healthy
+      grafana-loki:
+        condition: service_healthy
+      prometheus:
+        condition: service_healthy
+  localstack:
+    image: localstack/localstack@sha256:722a22bc441ffcaffa434c1720b04f8bfec60cc24b419ebdc4343cc43908de7f
+    ports:
+      - "${LOCALSTACK_GATEWAY_PORT:-4566}:4566"
+    volumes:
+      - "${DOCKER_HOST_SOCK:-/var/run/docker.sock}:/var/run/docker.sock"
+  # NOTE: ./terraformディレクトリをバインドマウントして名前付きボリューム(terraform-volume)にコピーする
+  terraform-setup:
+    image: bash:latest
+    volumes:
+      - ./terraform:/terraform-origin
+      - terraform-volume:/terraform
+    command: ["cp", "-rT", "/terraform-origin", "/terraform"]
+  terraform-init:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    volumes:
+      - terraform-volume:/terraform
+    command: ["init"]
+    depends_on:
+      terraform-setup:
+        condition: service_completed_successfully
+  terraform-apply:
+    image: hashicorp/terraform:1.10.4
+    working_dir: /terraform
+    volumes:
+      - terraform-volume:/terraform
+    environment:
+      TF_VAR_aws_service_endpoint: "http://localstack:4566"
+      TF_VAR_service_endpoints: '{ "cart": "cart-service:50051", "order": "order-service:50051" }'
+    command: ["apply", "-auto-approve"]
+    depends_on:
+      localstack:
+        condition: service_started
+      terraform-init:
+        condition: service_completed_successfully
+  tenant-opentelemetry-collector-agent:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector-agent
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      opentelemetry-collector-gateway:
+        condition: service_started
+  tenant-service:
+    build:
+      context: .
+      dockerfile: ./rust.Dockerfile
+      args:
+        APPLICATION_NAME: "tenant"
+        SERVICE_DIRECTORY: "services/tenant"
+    develop:
+      watch:
+        - path: ./crates
+          action: rebuild
+        - path: ./proto
+          action: rebuild
+        - path: ./services/tenant/src/main.rs
+          action: rebuild
+        - path: ./services/tenant/internal
+          action: rebuild
+        - path: ./services/tenant/Cargo.lock
+          action: rebuild
+        - path: ./services/tenant/Cargo.toml
+          action: rebuild
+    ports:
+      - "${TENANT_SERVICE_PORT:-50051}:50051"
+    environment:
+      LOCALSTACK_GATEWAY_HOST: localstack
+      OPENTELEMETRY_COLLECTOR_HOST: tenant-opentelemetry-collector-agent
+    depends_on:
+      tenant-opentelemetry-collector-agent:
+        condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
+  cart-opentelemetry-collector-agent:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector-agent
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      opentelemetry-collector-gateway:
+        condition: service_started
+  cart-event-router-build:
+    image: ghcr.io/cargo-lambda/cargo-lambda:1.8.0
+    working_dir: /app
+    volumes:
+      - ./crates:/app/crates
+      - ./proto:/app/proto
+      - ./services/cart:/app/services/cart
+    command:
+      [
+        "cargo",
+        "lambda",
+        "build",
+        "--release",
+        "--arm64",
+        "--no-default-features",
+        "--features=event-router",
+        "--bin=event-router",
+        "--manifest-path=services/cart/Cargo.toml",
+      ]
+  cart-event-router-deploy:
+    image: ghcr.io/cargo-lambda/cargo-lambda:1.8.0
+    working_dir: /app
+    volumes:
+      - ./crates:/app/crates
+      - ./proto:/app/proto
+      - ./services/cart:/app/services/cart
+    environment:
+      AWS_ACCESS_KEY_ID: test
+      AWS_SECRET_ACCESS_KEY: test
+      AWS_DEFAULT_REGION: ap-northeast-1
+    command:
+      [
+        "cargo",
+        "lambda",
+        "deploy",
+        "--endpoint-url=http://localstack:4566",
+        "--binary-name=event-router",
+        "--manifest-path=services/cart/Cargo.toml",
+        "cart-event-router",
+      ]
+    depends_on:
+      cart-event-router-build:
+        condition: service_completed_successfully
+      opentelemetry-collector-gateway:
+        condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
+  cart-service:
+    build:
+      context: .
+      dockerfile: ./rust.Dockerfile
+      args:
+        APPLICATION_NAME: "cart"
+        SERVICE_DIRECTORY: "services/cart"
+    develop:
+      watch:
+        - path: ./crates
+          action: rebuild
+        - path: ./proto
+          action: rebuild
+        - path: ./services/cart/src/main.rs
+          action: rebuild
+        - path: ./services/cart/internal
+          action: rebuild
+        - path: ./services/cart/Cargo.lock
+          action: rebuild
+        - path: ./services/cart/Cargo.toml
+          action: rebuild
+    ports:
+      - "${CART_SERVICE_PORT:-50052}:50051"
+    environment:
+      LOCALSTACK_GATEWAY_HOST: localstack
+      OPENTELEMETRY_COLLECTOR_HOST: cart-opentelemetry-collector-agent
+    depends_on:
+      cart-opentelemetry-collector-agent:
+        condition: service_started
+      cart-event-router-deploy:
+        condition: service_completed_successfully
+      terraform-apply:
+        condition: service_completed_successfully
+  order-opentelemetry-collector-agent:
+    image: otel/opentelemetry-collector@sha256:3b70e78f044c5d3145a00fc6ba28a771caa769c51eae60311b882e2a229af927
+    volumes:
+      - ./config/opentelemetry-collector/agent.yaml:/etc/config.yaml
+    environment:
+      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector-agent
+      OPENTELEMETRY_COLLECTOR_GATEWAY_HOST: opentelemetry-collector-gateway
+      PROMETHEUS_HOST: prometheus
+    command: ["--config=/etc/config.yaml"]
+    depends_on:
+      opentelemetry-collector-gateway:
+        condition: service_started
+  order-service:
+    build:
+      context: .
+      dockerfile: ./rust.Dockerfile
+      args:
+        APPLICATION_NAME: "order"
+        SERVICE_DIRECTORY: "services/order"
+    develop:
+      watch:
+        - path: ./crates
+          action: rebuild
+        - path: ./proto
+          action: rebuild
+        - path: ./services/order/src/main.rs
+          action: rebuild
+        - path: ./services/order/internal
+          action: rebuild
+        - path: ./services/order/Cargo.lock
+          action: rebuild
+        - path: ./services/order/Cargo.toml
+          action: rebuild
+    ports:
+      - "${ORDER_SERVICE_PORT:-50053}:50051"
+    environment:
+      LOCALSTACK_GATEWAY_HOST: localstack
+      OPENTELEMETRY_COLLECTOR_HOST: order-opentelemetry-collector-agent
+    depends_on:
+      order-opentelemetry-collector-agent:
+        condition: service_started
+      terraform-apply:
+        condition: service_completed_successfully
+volumes:
+  terraform-volume:
+    name: terraform

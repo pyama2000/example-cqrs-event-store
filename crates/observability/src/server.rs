@@ -82,11 +82,11 @@ impl<B> tower_http::trace::MakeSpan<B> for MakeSpan {
         }
 
         let span = tracing::info_span!("", otel.name = %req.uri().path()[1..]);
-        let ctx = opentelemetry::global::get_text_map_propagator(|p| {
+        let parent = opentelemetry::global::get_text_map_propagator(|p| {
             p.extract(&opentelemetry_http::HeaderExtractor(req.headers()))
         });
-        if ctx.span().span_context().is_valid() {
-            span.set_parent(ctx);
+        if parent.span().span_context().is_valid() {
+            span.set_parent(parent);
         }
 
         span
