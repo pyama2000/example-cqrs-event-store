@@ -15,3 +15,4 @@ packages:
 - name: bufbuild/buf@v1.47.2
 - name: protocolbuffers/protobuf/protoc@v28.3
 - name: fullstorydev/grpcui@v1.4.3
+- name: k1LoW/runn@v0.129.2

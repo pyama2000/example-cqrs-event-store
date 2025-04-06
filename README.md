@@ -75,6 +75,15 @@ docker compose watch
 | `CART_SERVICE_PORT` | カートサービスにアクセスするためのポート | `50052` |
 | `ORDER_SERVICE_PORT` | 注文サービスにアクセスするためのポート | `50053` |
 
+### runnで各サービスのRPCを呼び出す
+
+シナリオテストができる [runn](https://github.com/k1LoW/runn) で各サービスのRPCを呼び出すことができます。
+`runn` はaquaで自動でインストールされます。
+
+```bash
+runn run --grpc-no-tls tests/runn/runbook.yaml
+```
+
 ### RPCを呼び出す
 
 各サービスのRPCを呼び出すクライアントはaquaで自動でインストールされます。
