@@ -5,6 +5,7 @@
 ## Prerequisites
 
 * Docker Compose: 2.22.0 and later
+* [aqua](https://aquaproj.github.io/)
 
 ## Getting Started
 
@@ -73,3 +74,20 @@ docker compose watch
 | `TENANT_SERVICE_PORT` | テナントサービスにアクセスするためのポート | `50051` |
 | `CART_SERVICE_PORT` | カートサービスにアクセスするためのポート | `50052` |
 | `ORDER_SERVICE_PORT` | 注文サービスにアクセスするためのポート | `50053` |
+
+### RPCを呼び出す
+
+各サービスのRPCを呼び出すクライアントはaquaで自動でインストールされます。
+GUIベースの [gRPC UI](https://github.com/fullstorydev/grpcui) か `curl` ライクな [Buf CLI](https://buf.build/product/cli) を利用できます。
+
+```bash
+# gRPC UIを起動する
+# ポートは呼び出したいgRPCサーバーに応じて変更してください
+grpcui -plaintext localhost:50051
+
+# Buf CLIでRPCを呼び出す
+# エンドポイントは呼び出したいgRPCサーバーに応じて変更してください
+buf curl --protocol grpc --http2-prior-knowledge \
+  --data '{ "name": "テストテナント" }' \
+  http://localhost:50051/tenant.v1.TenantService/Create
+```

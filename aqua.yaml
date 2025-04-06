@@ -14,3 +14,4 @@ packages:
 - name: golang-migrate/migrate@v4.17.1
 - name: bufbuild/buf@v1.47.2
 - name: protocolbuffers/protobuf/protoc@v28.3
+- name: fullstorydev/grpcui@v1.4.3
