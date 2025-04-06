@@ -91,3 +91,15 @@ buf curl --protocol grpc --http2-prior-knowledge \
   --data '{ "name": "テストテナント" }' \
   http://localhost:50051/tenant.v1.TenantService/Create
 ```
+
+### AWS CLIでLocalStackのリソースを確認する
+
+エンドポイントをLocalStackに向けるとAWS CLIでAmazon DynamoDBのテーブルやAmazon CloudWatch Logsなどを確認できます
+
+```bash
+# オプションでエンドポイントを指定する
+aws dynamodb --endpoint-url http://localhost:4566 list-tables
+
+# 環境変数でエンドポイントを指定する
+AWS_ENDPOINT=http://localhost:4566 aws dynamodb list-tables
+```
