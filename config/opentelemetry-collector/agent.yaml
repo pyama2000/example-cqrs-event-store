@@ -1,0 +1,26 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: ${env:OPENTELEMETRY_COLLECTOR_HOST}:4317
+processors:
+  batch:
+exporters:
+  otlp/gateway:
+    endpoint: ${env:OPENTELEMETRY_COLLECTOR_GATEWAY_HOST}:4317
+    tls:
+      insecure: true
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/gateway]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/gateway]
+    logs:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/gateway]

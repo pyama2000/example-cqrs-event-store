@@ -1,0 +1,230 @@
+desc: Invoke tenant service RPCs
+runners:
+  greqTenant: grpc://localhost:${TENANT_SERVICE_PORT:-50051}
+  greqCart: grpc://localhost:${CART_SERVICE_PORT:-50052}
+  greqOrder: grpc://localhost:${ORDER_SERVICE_PORT:-50053}
+steps:
+  createTenant:
+    desc: テナントを作成する
+    greqTenant:
+      tenant.v1.TenantService/Create:
+        message:
+          name: テストテナント
+    test: |
+      current.res.status == 0
+    bind:
+      tenantID: current.res.message.id
+  listTenants:
+    desc: テナントを一覧取得する
+    greqTenant:
+      tenant.v1.TenantService/ListTenants:
+        message: {}
+    test: |
+      current.res.status == 0
+      && any(current.res.message.tenants, { .id == tenantID })
+  addItemsToTenant:
+    desc: 商品をテナントに追加する
+    greqTenant:
+      tenant.v1.TenantService/AddItems:
+        message:
+          tenant_id: "{{ tenantID }}"
+          items: "{{ map(1..5, { { name: '商品' + string(#), price: # * 1000 } }) }}"
+    test: |
+      current.res.status == 0
+      && len(current.res.message.ids) == 5
+    bind:
+      itemIDs: current.res.message.ids
+  listTenantItems:
+    desc: テナントの商品を一覧取得する
+    greqTenant:
+      tenant.v1.TenantService/ListItems:
+        message:
+          tenant_id: "{{ tenantID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .id })) == sort(itemIDs)
+  removeItemsFromTenant:
+    desc: テナントの商品を削除する
+    greqTenant:
+      tenant.v1.TenantService/RemoveItems:
+        message:
+          tenant_id: "{{ tenantID }}"
+          item_ids:
+            - "{{ itemIDs[0] }}"
+            - "{{ itemIDs[2] }}"
+    test: |
+      current.res.status == 0
+    bind:
+      itemIDs2: "[itemIDs[1], itemIDs[3], itemIDs[4]]"
+  listTenantItemsAfterRemoved:
+    desc: アイテム削除後のテナントの商品を一覧取得する
+    greqTenant:
+      tenant.v1.TenantService/ListItems:
+        message:
+          tenant_id: "{{ tenantID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .id })) == sort(itemIDs2)
+  createCart:
+    desc: カートを作成する
+    greqCart:
+      cart.v1.CartService/Create:
+        message: {}
+    test: |
+      current.res.status == 0
+    bind:
+      cartID: current.res.message.id
+  addItemToCart:
+    desc: カートに商品を追加する
+    loop: len(itemIDs2)
+    greqCart:
+      cart.v1.CartService/AddItem:
+        message:
+          id: "{{ cartID }}"
+          tenant_id: "{{ tenantID }}"
+          item_id: "{{ itemIDs2[i] }}"
+    test: |
+      current.res.status == 0
+  getCart:
+    desc: カートを取得する
+    greqCart:
+      cart.v1.CartService/Get:
+        message:
+          id: "{{ cartID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs2)
+  removeItemsFromCart:
+    desc: カートから商品を削除する
+    greqCart:
+      cart.v1.CartService/RemoveItem:
+        message:
+          id: "{{ cartID }}"
+          tenant_id: "{{ tenantID }}"
+          item_id: "{{ itemIDs2[1] }}"
+    test: |
+      current.res.status == 0
+    bind:
+      itemIDs3: "[itemIDs2[0], itemIDs2[2]]"
+  getCartAfterRemoved:
+    desc: 商品削除後のカートを取得する
+    greqCart:
+      cart.v1.CartService/Get:
+        message:
+          id: "{{ cartID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs3)
+  placeOrder:
+    desc: カートの商品を注文する
+    greqCart:
+      cart.v1.CartService/PlaceOrder:
+        message:
+          id: "{{ cartID }}"
+    test: |
+      current.res.status == 0
+  preGetOrder:
+    desc: カートIDから注文を取得できるまで繰り返す
+    loop:
+      count: 3
+      until: 'current.res.status == 0'
+      minInterval: 500ms
+      maxInterval: 10
+    greqOrder:
+      order.v1.OrderService/Get:
+        message:
+          cart_id: "{{ cartID }}"
+  getOrderByCartID:
+    desc: カートIDから注文を取得する
+    loop:
+    greqOrder:
+      order.v1.OrderService/Get:
+        message:
+          cart_id: "{{ cartID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs3)
+      && current.res.message.status == 1
+    bind:
+      orderID: current.res.message.id
+  getOrderByOrderID:
+    desc: 注文IDから注文を取得する
+    greqOrder:
+      order.v1.OrderService/Get:
+        message:
+          order_id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs3)
+      && current.res.message.status == 1
+  listTenantReceivedOrders:
+    desc: テナントのORDER_STATUS_RECEIVEDな注文一覧を取得する
+    greqOrder:
+      order.v1.OrderService/ListTenantReceivedOrders:
+        message:
+          tenant_id: "{{ tenantID }}"
+    test: |
+      current.res.status == 0
+      && current.res.message.ids == [orderID]
+  prepared:
+    desc: 注文を準備完了にする
+    greqOrder:
+      order.v1.OrderService/Prepared:
+        message:
+          id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+  getOrderAfterPrepared:
+    desc: 準備完了後の注文を取得する
+    greqOrder:
+      order.v1.OrderService/Get:
+        message:
+          order_id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs3)
+      && current.res.message.status == 2
+  listPreparedOrders:
+    desc: ORDER_STATUS_PREPAREDな注文一覧を取得する
+    greqOrder:
+      order.v1.OrderService/ListPreparedOrders:
+        message: {}
+    test: |
+      current.res.status == 0
+      && any(current.res.message.ids, { # == orderID })
+  pickedUp:
+    desc: 注文を受け取ったステータスにする
+    greqOrder:
+      order.v1.OrderService/PickedUp:
+        message:
+          id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+  getOrderAfterPickedUp:
+    desc: 受け取ったステータスに変更後の注文を取得する
+    greqOrder:
+      order.v1.OrderService/Get:
+        message:
+          order_id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs3)
+      && current.res.message.status == 3
+  delivered:
+    desc: 注文を配達済みステータスにする
+    greqOrder:
+      order.v1.OrderService/Delivered:
+        message:
+          id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+  getOrderAfterDelivered:
+    desc: 配達後の注文を取得する
+    greqOrder:
+      order.v1.OrderService/Get:
+        message:
+          order_id: "{{ orderID }}"
+    test: |
+      current.res.status == 0
+      && sort(map(current.res.message.items, { .item_id })) == sort(itemIDs3)
+      && current.res.message.status == 4

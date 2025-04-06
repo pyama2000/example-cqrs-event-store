@@ -1,0 +1,18 @@
+[package]
+name = "driver"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+app = { version = "0.1.0", path = "../app" }
+observability = { version = "0.1.0", path = "../../../../crates/observability", features = ["server"] }
+proto = { version = "0.1.0", path = "../../../../proto/generate/rust", default-features = false, features = ["tenant-v1"] }
+tonic = "0.12.3"
+tonic-health = "0.12.3"
+tonic-reflection = "0.12.3"
+tonic-types = "0.12.3"
+tower-http = { version = "0.6.2", features = ["catch-panic"] }
+tracing = "0.1.40"
+
+[lints]
+workspace = true

@@ -1,7 +1,7 @@
-use kernel::CommandProcessor;
+use kernel::command::processor::CommandProcessor;
 
 /// ユースケースのインターフェイス
-pub trait CommandService {}
+pub trait CommandUseCaseExt {}
 
 /// ユースケースの実態
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -15,4 +15,4 @@ impl<P: CommandProcessor> CommandUseCase<P> {
     }
 }
 
-impl<P> CommandService for CommandUseCase<P> where P: CommandProcessor + Send + Sync + 'static {}
+impl<P> CommandUseCaseExt for CommandUseCase<P> where P: CommandProcessor + Send + Sync + 'static {}

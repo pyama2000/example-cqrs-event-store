@@ -1,0 +1,59 @@
+syntax = "proto3";
+
+package cart.v1;
+
+message CreateRequest {}
+
+message CreateResponse {
+  string id = 1;
+}
+
+message GetRequest {
+  string id = 1;
+}
+
+message GetResponse {
+  message Item {
+    string tenant_id = 1;
+    string item_id = 2;
+    uint32 quantity = 3;
+  }
+
+  string id = 1;
+  repeated Item items = 2;
+}
+
+message AddItemRequest {
+  string id = 1;
+  string tenant_id = 2;
+  string item_id = 3;
+}
+
+message AddItemResponse {}
+
+message RemoveItemRequest {
+  string id = 1;
+  string tenant_id = 2;
+  string item_id = 3;
+}
+
+message RemoveItemResponse {}
+
+message PlaceOrderRequest {
+  string id = 1;
+}
+
+message PlaceOrderResponse {}
+
+service CartService {
+  // 空のカートを作成する
+  rpc Create(CreateRequest) returns (CreateResponse);
+  // カートを取得する
+  rpc Get(GetRequest) returns (GetResponse);
+  // 商品を追加する
+  rpc AddItem(AddItemRequest) returns (AddItemResponse);
+  // 商品を削除する
+  rpc RemoveItem(RemoveItemRequest) returns (RemoveItemResponse);
+  // 注文する
+  rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse);
+}

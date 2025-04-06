@@ -10,6 +10,9 @@ driver = { version = "0.1.0", path = "internal/driver" }
 kernel = { version = "0.1.0", path = "internal/kernel" }
 tokio = { version = "1.41.0", default-features = false, features = ["macros", "rt-multi-thread"] }
 
+[lints.clippy]
+pedantic = "warn"
+
 [workspace]
 members = ["internal/*"]
 resolver = "2"

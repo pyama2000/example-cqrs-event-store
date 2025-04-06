@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package order.v1;
+
+message Item {
+  string tenant_id = 1;
+  string item_id = 2;
+  uint32 quantity = 3;
+}
+
+message CreateRequest {
+  string cart_id = 1;
+  repeated Item items = 2;
+}
+
+message CreateResponse {
+  string id = 1;
+}
+
+message GetRequest {
+  oneof id {
+    string order_id = 1;
+    string cart_id = 2;
+  }
+}
+
+message GetResponse {
+  enum OrderStatus {
+    ORDER_STATUS_UNSPECIFIED = 0;
+    ORDER_STATUS_RECEIVED = 1; // 受付状態
+    ORDER_STATUS_PREPARED = 2; // テナントの準備が完了した
+    ORDER_STATUS_ON_THE_WAY = 3; // 配達中
+    ORDER_STATUS_DELIVERED = 4; // 配達済み
+    ORDER_STATUS_CANCELLED = 5; // 注文がキャンセルされた
+  }
+
+  string id = 1;
+  repeated Item items = 2;
+  OrderStatus status = 3;
+}
+
+message ListTenantReceivedOrdersRequest {
+  string tenant_id = 1;
+}
+
+message ListTenantReceivedOrdersResponse {
+  repeated string ids = 1;
+}
+
+message ListPreparedOrdersRequest {}
+
+message ListPreparedOrdersResponse {
+  repeated string ids = 1;
+}
+
+message PreparedRequest {
+  string id = 1;
+}
+
+message PreparedResponse {}
+
+message PickedUpRequest {
+  string id = 1;
+}
+
+message PickedUpResponse {}
+
+message DeliveredRequest {
+  string id = 1;
+}
+
+message DeliveredResponse {}
+
+message CancelRequest {
+  string id = 1;
+}
+
+message CancelResponse {}
+
+service OrderService {
+  rpc Create(CreateRequest) returns (CreateResponse);
+  rpc Get(GetRequest) returns (GetResponse);
+  rpc ListTenantReceivedOrders(ListTenantReceivedOrdersRequest) returns (ListTenantReceivedOrdersResponse);
+  rpc ListPreparedOrders(ListPreparedOrdersRequest) returns (ListPreparedOrdersResponse);
+  // テナントが商品の準備が完了した
+  rpc Prepared(PreparedRequest) returns (PreparedResponse);
+  // 配達員が商品を受け取った
+  rpc PickedUp(PickedUpRequest) returns (PickedUpResponse);
+  // 商品の受け渡しが完了した
+  rpc Delivered(DeliveredRequest) returns (DeliveredResponse);
+  // 注文を何らかの理由でキャンセルする
+  rpc Cancel(CancelRequest) returns (CancelResponse);
+}
